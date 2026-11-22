@@ -1,0 +1,51 @@
+# Neon Command
+
+**Estrategia en tiempo real contra un bot, con un mapa nuevo cada día, igual para todos.** Juego de navegador de código
+abierto, hecho con JavaScript, CSS y HTML puros: sin frameworks, sin paso de compilación, sin registro.
+
+- **Jugar:** [games.johnandrestrujillo.com/play/neon-command](https://games.johnandrestrujillo.com/play/neon-command)
+- **Controles:** compra unidades con los botones de abajo, elige un grupo y toca el mapa para mandarlo. En teclado:
+  1, 2 y 3 compran; Q, W, E y R eligen el grupo; Esc o P pausan.
+
+*English: a small real-time strategy game against a bot, with a new map every day. Open-source browser game in plain
+JavaScript. Add `?lang=en` for English.*
+
+![Neon Command](og.png)
+
+## Cómo se juega
+
+Tu núcleo está abajo y el del bot arriba. La energía llega sola, y más rápido por cada cristal que controlas: un cristal
+pasa a tu lado cuando solo tus unidades están a su alrededor unos segundos. Tres unidades se ganan entre sí en círculo:
+
+| Unidad | Costo | Le gana a |
+|---|---|---|
+| Chispa (rápida) | 40 | Lanza |
+| Lanza (largo alcance) | 60 | Escudo |
+| Escudo (resistente) | 80 | Chispa |
+
+Las unidades pelean con lo que encuentran en el camino. Los núcleos se defienden un poco y resisten: un asedio toma su
+tiempo. Gana quien destruya el núcleo del otro. Las partidas duran de 2 a 7 minutos.
+
+## El reto del día
+
+La fecha decide el mapa (dónde están los cristales, siempre en espejo para que sea justo) y el estilo del bot: su mezcla de
+unidades, cuántas junta antes de atacar y qué tan seguido responde a lo que tú construyes. Todos enfrentan la misma
+batalla ese día. Ganar da 1.000 puntos más un bono por rapidez y por el núcleo que conserves; perder da puntos por las
+unidades derribadas, el daño al núcleo enemigo y los cristales tomados. Detalles en [docs/DAILY.md](docs/DAILY.md).
+
+## Probarlo en tu máquina
+
+```
+python3 -m http.server 8000
+```
+
+y abre <http://localhost:8000>. Para jugar la batalla de otro día: `?debug=true&day=2026-11-30`.
+Pruebas (Playwright): `tests/smoke.py`; batallas aceleradas con un jugador de prueba: `tests/battles.py`.
+
+## Créditos y licencia
+
+Código original de John Andrés Trujillo, publicado con [licencia MIT](LICENSE). Un juego propio del género de estrategia
+en tiempo real: sus unidades, reglas y aspecto no copian ningún juego existente. El reto diario, la forma de compartir y la
+medición vienen de sus juegos hermanos [Neon Raiders](https://github.com/jatezzz/neon-raiders),
+[Neon Bricks](https://github.com/jatezzz/neon-bricks) y [Neon Stack](https://github.com/jatezzz/neon-stack). Este proyecto no
+está afiliado ni respaldado por los dueños de ningún juego ni de sus marcas.
