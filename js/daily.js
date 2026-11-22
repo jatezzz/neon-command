@@ -22,9 +22,10 @@
         firstDay: '2026-11-22',          // challenge #1 (launch day)
         buttonsDelayMs: 700,             // game-over buttons ignore taps at first (players are still tapping)
         //  Games recommended on the game-over screen; one per day, in turn.
-        recommend: [
-            { id: 'neon-stack', title: 'Neon Stack', emoji: '🟦' },
-            { id: 'neon-bricks', title: 'Neon Bricks', emoji: '🧱' }
+        recommend: [            // the other Neon games: one universe
+            { id: 'neon-raiders', title: 'Neon Raiders', emoji: '👾' },
+            { id: 'neon-bricks', title: 'Neon Bricks', emoji: '🧱' },
+            { id: 'neon-stack', title: 'Neon Stack', emoji: '🟦' }
         ]
     };
 
@@ -296,6 +297,11 @@
         track('over', { s: result.score, w: result.wall, k: result.bricks, c: result.maxCombo, p: result.powers, df: result.level, n: summary.attempts,
                         o: o || '', vs: target ? target.score : '' });
         //  A portal that embeds the game with its SDK shows its own game-over screen over this one.
+        //  The shared celebration (js/neon-fx.js, one for every Neon game): a win or a tie against a score to beat,
+        //  a new best of the day, or a loss against a score to beat. On the card, or over the game inside a portal.
+        var fx = o === 'win' || o === 'tie' ? 'win' : (summary.isBest && result.score > 0 ? 'best' : (o === 'lose' ? 'lose' : null));
+        var fxOnCard = !!overlay && !(embedded && window.PortalSDK);
+        if (fx && window.NeonFx && !fxOnCard) { window.NeonFx.celebrate(fx, false); }
         if (!overlay || (embedded && window.PortalSDK)) { return summary; }
 
         el('goTitle').textContent = I.t('over.title', { n: challengeNumber(), date: I.shortDate(today()) });
@@ -323,6 +329,8 @@
 
         shownAt = Date.now();
         overlay.hidden = false;
+        if (el('goFx')) { el('goFx').hidden = true; }
+        if (fx && window.NeonFx) { window.NeonFx.celebrate(fx, true); }
         document.body.classList.add('over');
         return summary;
     }
@@ -342,6 +350,7 @@
 
     function onRunStart() {
         hideOverlay();
+        if (window.NeonFx) { window.NeonFx.preload(); }
         //  "Did this player come back?" without knowing who they are: the run reports how many different days this
         //  browser has played (dp) and the current streak (st). They are counts, not identifiers.
         var days = read('nc.days', null);

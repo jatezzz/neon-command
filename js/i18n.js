@@ -14,6 +14,7 @@
 
     var STRINGS = {
         es: {
+            'rec.neon-command': 'Estrategia: gánale a mi bot.',
             'surrender': 'Rendirse',
             'sudden': '¡Muerte súbita!',
             'resume': 'Seguir',
@@ -114,10 +115,11 @@
             'info.unmute': 'activar sonido',
             'info.source': 'código en GitHub',
             'info.portal': 'más juegos',
-            'rec.neon-raiders': 'Arcade de naves: el mismo reto diario para todos.',
+            'rec.neon-raiders': 'Arcade de naves: supera al bot.',
             'rec.neon-highway': 'Carrera synthwave: mejora tu vuelta más rápida.'
         },
         en: {
+            'rec.neon-command': 'Strategy: beat my bot.',
             'surrender': 'Give up',
             'sudden': 'Sudden death!',
             'resume': 'Continue',
@@ -218,7 +220,7 @@
             'info.unmute': 'unmute',
             'info.source': 'source on GitHub',
             'info.portal': 'more games',
-            'rec.neon-raiders': 'Space shooter: the same daily challenge for everyone.',
+            'rec.neon-raiders': 'Space shooter: beat the bot.',
             'rec.neon-highway': 'Synthwave racer: beat your fastest lap.'
         }
     };
