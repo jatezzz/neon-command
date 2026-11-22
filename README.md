@@ -24,7 +24,20 @@ pasa a tu lado cuando solo tus unidades están a su alrededor unos segundos. Tre
 | Escudo (resistente) | 80 | Chispa |
 
 Las unidades pelean con lo que encuentran en el camino. Los núcleos se defienden un poco y resisten: un asedio toma su
-tiempo. Gana quien destruya el núcleo del otro. Las partidas duran de 2 a 7 minutos.
+tiempo. Gana quien destruya el núcleo del otro.
+
+**Para que sea justo** (cómo lo hacen otros juegos de estrategia):
+
+- **Tres niveles.** Fácil, Normal y Difícil cambian la energía del bot, lo rápido que piensa y contraataca, cuánto espera
+  antes de atacar y cuántas unidades se permite tener de más. El puntaje se multiplica (×0,6, ×1, ×1,4), así que los
+  resultados de distintos niveles se pueden comparar. La primera vez se empieza en Fácil; el juego recuerda la elección.
+- **Nadie empieza vacío:** cada lado arranca con dos Chispas y una Lanza.
+- **Remontada:** quien tiene menos cristales recibe 2 de energía por segundo por cada cristal de diferencia.
+- **Muerte súbita:** desde el minuto 8 los núcleos pierden su blindaje y desde el 10 reciben el doble; no hay empates
+  eternos.
+- **Rendirse:** en la pausa, para no esperar una derrota que ya se ve venir.
+
+Las partidas duran de 2 a 10 minutos.
 
 ## El reto del día
 

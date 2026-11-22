@@ -21,9 +21,21 @@
         bulwark: { cost: 80, hp: 170, speed: 28, range: 15, dmg: 10, every: 0.8,  r: 8, beats: 'spark',   shape: 'sq' }
     };
     var ORDER = ['spark', 'lancer', 'bulwark'];
-    var CORE_HP = 5000, CORE_R = 22;
+    var CORE_HP = 3500, CORE_R = 22;
     var CORE_ARMOR = 0.5;                                 // units do half damage to a core: a siege takes a while
     var START_ENERGY = 140, INCOME = 6, CRYSTAL_INCOME = 3;
+    var CATCH_UP = 2;
+    var SUDDEN = 480, SUDDEN2 = 600;                     // after 8 minutes cores lose their armour, after 10 they take double                                     // energy per second for every crystal the other side holds more
+    var START_ARMY = ['spark', 'spark', 'lancer'];        // nobody starts empty
+    //  Levels: how much energy the bot gets, how fast it thinks, how often it answers your mix, how long it waits before
+    //  its first attack, how many units it adds to its push size, how many more units than yours it allows itself,
+    //  and the score multiplier, so scores stay comparable across levels.
+    var LEVELS = {
+        easy:   { income: 0.70, think: 1.1,  counter: 0.4, grace: 120, attackPlus: 4, lead: 3,  mult: 0.6 },
+        normal: { income: 0.85, think: 0.75, counter: 0.75, grace: 70, attackPlus: 2, lead: 6,  mult: 1.0 },
+        hard:   { income: 1.00, think: 0.5,  counter: 1.0, grace: 30,  attackPlus: 0, lead: 99, mult: 1.4 }
+    };
+    var LEVEL_KEYS = ['easy', 'normal', 'hard'];
     var CAPTURE_R = 28, CAPTURE_TIME = 2.5;
     var SIDE = { you: { color: '#00f0ff', dim: 'rgba(0,240,255,0.25)' }, bot: { color: '#ff00c8', dim: 'rgba(255,0,200,0.25)' } };
 
@@ -103,9 +115,17 @@
         this.best = D ? D.todayProgress().best : 0;
         this.streak = D ? D.currentStreak() : 0;
         this.plan = dayPlan();
+        this.level = 'easy';                              // a first battle should be winnable; the choice is remembered
+        try { var saved = window.localStorage.getItem('nc.level'); if (LEVELS[saved]) { this.level = saved; } } catch (err) { /* no storage */ }
         this.resetRun();
         this.resize();
     }
+
+    Game.prototype.setLevel = function (key) {
+        if (!LEVELS[key]) { return; }
+        this.level = key;
+        try { window.localStorage.setItem('nc.level', key); } catch (err) { /* no storage */ }
+    };
 
     Game.prototype.log = function (name, extra) {
         var e = { ev: name, at: Date.now(), t: Math.round(this.time * 1000) / 1000, score: this.score };
@@ -143,8 +163,10 @@
     Game.prototype.startRun = function () {
         this.resetRun();
         if (D) { D.onRunStart(); }
-        this.log('run');
+        this.log('run', { level: this.level });
         this.state = 'play';
+        var self = this;
+        ['you', 'bot'].forEach(function (side) { START_ARMY.forEach(function (k) { self.spawn(side, k); }); });
         this.announce();
     };
     Game.prototype.restart = function () { if (this.state === 'over') { this.startRun(); } };
@@ -158,13 +180,20 @@
         var mine = this.units.filter(function (x) { return x.side === side; }).length;
         if (mine >= CAP) { return false; }
         this.energy[side] -= u.cost;
+        this.spawn(side, kind);
+        if (side === 'you') { this.stats.built += 1; this.sound.tone(330 + ORDER.indexOf(kind) * 110, 0.08, 'triangle', 0.06); }
+        this.log('buy', { side: side, kind: kind });
+        return true;
+    };
+
+    //  A new unit next to its core.
+    Game.prototype.spawn = function (side, kind) {
+        var u = UNITS[kind], core = this.cores[side];
         var dir = side === 'you' ? -1 : 1;
         var unit = { id: this.nextId++, side: side, kind: kind, x: core.x + (this.units.length % 5 - 2) * 9, y: core.y + dir * (CORE_R + 10),
                      hp: u.hp, cool: 0, target: null, goal: side === 'you' ? { x: this.rally.x, y: this.rally.y } : null, flash: 0 };
         this.units.push(unit);
-        if (side === 'you') { this.stats.built += 1; this.sound.tone(330 + ORDER.indexOf(kind) * 110, 0.08, 'triangle', 0.06); }
-        this.log('buy', { side: side, kind: kind });
-        return true;
+        return unit;
     };
 
     //  Send the selected group (or everyone) to a point. They fight what they meet on the way.
@@ -185,14 +214,15 @@
     Game.prototype.botUpdate = function (dt) {
         this.botThink -= dt;
         if (this.botThink > 0) { return; }
-        this.botThink = 0.5;
+        var L = LEVELS[this.level];
+        this.botThink = L.think;
         var r = this.botRng, plan = this.plan, self = this;
         //  What to build: often the answer to your most numerous unit, otherwise its own mix of the day.
         if (!this.botWant) {
             var yours = { spark: 0, lancer: 0, bulwark: 0 };
             this.units.forEach(function (u) { if (u.side === 'you') { yours[u.kind]++; } });
             var top = ORDER.slice().sort(function (a, b) { return yours[b] - yours[a]; })[0];
-            if (yours[top] >= 3 && r() < plan.counter) {
+            if (yours[top] >= 3 && r() < plan.counter * L.counter) {
                 this.botWant = ORDER.filter(function (k) { return UNITS[k].beats === top; })[0];
             } else {
                 var x = r(), acc = 0;
@@ -200,13 +230,16 @@
                 this.botWant = this.botWant || 'spark';
             }
         }
-        if (this.buy('bot', this.botWant)) { this.botWant = null; }
+        //  On the easier levels the bot never builds far more units than you have.
+        var mineCount = this.units.filter(function (u) { return u.side === 'you'; }).length;
+        var botCount = this.units.filter(function (u) { return u.side === 'bot'; }).length;
+        if (botCount < mineCount + L.lead && this.buy('bot', this.botWant)) { this.botWant = null; }
         //  Where to go: hold the crystals near home, push when the army is big enough, defend the core when attacked.
         var army = this.units.filter(function (u) { return u.side === 'bot'; });
         var threat = this.units.some(function (u) { return u.side === 'you' && dist2(u, self.cores.bot) < 130 * 130; });
         if (threat) { this.botMode = 'defend'; }
-        else if (army.length >= plan.attackAt) { this.botMode = 'attack'; }
-        else if (this.botMode !== 'attack' || army.length < plan.attackAt / 2) { this.botMode = 'gather'; }
+        else if ((army.length >= plan.attackAt + L.attackPlus && this.battle >= L.grace) || (this.battle >= SUDDEN && army.length >= 3)) { this.botMode = 'attack'; }
+        else if (this.botMode !== 'attack' || army.length < (plan.attackAt + L.attackPlus) / 2) { this.botMode = 'gather'; }
         var goal;
         if (this.botMode === 'attack') { goal = { x: this.cores.you.x, y: this.cores.you.y }; }
         else if (this.botMode === 'defend') { goal = { x: this.cores.bot.x, y: this.cores.bot.y + 60 }; }
@@ -224,8 +257,14 @@
         this.time += dt;
         if (this.state === 'play') {
             this.battle += dt;
-            this.energy.you += (INCOME + CRYSTAL_INCOME * this.owned('you')) * dt;
-            this.energy.bot += (INCOME + CRYSTAL_INCOME * this.owned('bot')) * dt;
+            var oy = this.owned('you'), ob = this.owned('bot');
+            this.energy.you += (INCOME + CRYSTAL_INCOME * oy + CATCH_UP * Math.max(0, ob - oy)) * dt;
+            this.energy.bot += (INCOME + CRYSTAL_INCOME * ob + CATCH_UP * Math.max(0, oy - ob)) * dt * LEVELS[this.level].income;
+            if (this.battle >= SUDDEN && this.battle - dt < SUDDEN) {
+                this.log('sudden');
+                this.texts.push({ x: W / 2, y: (TOP + FIELD_B) / 2 - 40, text: t('sudden'), life: 2.4, max: 2.4, big: true, color: '#ffdc3c' });
+                this.sound.tone(200, 0.5, 'sawtooth', 0.07, 400);
+            }
             this.botUpdate(dt);
             this.moveUnits(dt);
             this.fight(dt);
@@ -321,18 +360,18 @@
             var u = this.units[i];
             if (u.hp > 0) { continue; }
             this.burst(u.x, u.y, SIDE[u.side].color, 10);
-            if (u.side === 'bot') { this.stats.kills += 1; this.addScore(10); } else { this.stats.lost += 1; }
+            if (u.side === 'bot') { this.stats.kills += 1; this.addScore(5); } else { this.stats.lost += 1; }
             this.sound.tone(u.side === 'bot' ? 220 : 160, 0.12, 'sawtooth', 0.05, 80, 'die');
             this.units.splice(i, 1);
         }
     };
 
     Game.prototype.hit = function (e, dmg, side) {
-        if (!e.kind) { dmg *= CORE_ARMOR; }
+        if (!e.kind) { dmg *= this.battle >= SUDDEN2 ? 2 : (this.battle >= SUDDEN ? 1 : CORE_ARMOR); }
         e.hp -= dmg;
         if (e.kind) { e.flash = 0.08; }
         else {
-            if (side === 'you' && this.state === 'play') { this.stats.damage += dmg; this.addScore(Math.round(dmg / 4)); }
+            if (side === 'you' && this.state === 'play') { this.stats.damage += dmg; this.addScore(Math.round(dmg / 8)); }
             this.impact(e.side === 'you' ? 2 : 1, 0.08);
             this.sound.tone(e.side === 'you' ? 120 : 180, 0.08, 'square', 0.05, null, 'core');
         }
@@ -381,10 +420,11 @@
         this.won = won;
         this.stats.crystals = this.owned('you');
         if (won) {
-            var bonus = 1000 + Math.max(0, Math.round((480 - this.battle) * 2)) + Math.round(this.cores.you.hp / CORE_HP * 300);
+            var bonus = 1000 + Math.max(0, Math.round((600 - this.battle) * 3)) + Math.round(this.cores.you.hp / CORE_HP * 300);
             this.addScore(bonus);
         }
-        this.log(won ? 'win' : 'lose', { seconds: Math.round(this.battle) });
+        this.score = Math.round(this.score * LEVELS[this.level].mult);       // the level multiplier keeps scores comparable
+        this.log(won ? 'win' : 'lose', { seconds: Math.round(this.battle), level: this.level });
         this.texts.push({ x: W / 2, y: (TOP + FIELD_B) / 2, text: t(won ? 'win' : 'lose'), life: 2.2, max: 2.2, big: true, color: won ? '#00ff9c' : '#ff00c8' });
         this.impact(6, 0.4, won ? '#00ff9c' : '#ff00c8', [60, 40, 60]);
         var core = this.cores[won ? 'bot' : 'you'];
@@ -440,11 +480,28 @@
         return out;
     };
 
+    Game.prototype.levelButtons = function () {
+        var w = 110, gap = 10, x0 = (W - 3 * w - 2 * gap) / 2;
+        return LEVEL_KEYS.map(function (k, i) { return { key: k, x: x0 + i * (w + gap), y: 405, w: w, h: 46 }; });
+    };
+    Game.prototype.pauseButtons = function () {
+        return { resume: { x: 100, y: 330, w: 200, h: 46 }, surrender: { x: 100, y: 392, w: 200, h: 46 } };
+    };
+
     //  A tap or click at a point of the play field (in field units).
     Game.prototype.tap = function (x, y) {
         this.sound.unlock();
-        if (this.paused) { this.requestPause(false); return; }
-        if (this.state === 'title') { this.startRun(); return; }
+        if (this.paused) {
+            var b = this.pauseButtons(), hitP = function (r) { return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h; };
+            this.requestPause(false);
+            if (hitP(b.surrender)) { this.log('surrender'); this.finish(false); }
+            return;
+        }
+        if (this.state === 'title') {
+            var lv = this.levelButtons().filter(function (r) { return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h; })[0];
+            if (lv) { this.setLevel(lv.key); }
+            this.startRun(); return;
+        }
         if (this.state === 'over') { if (!(D && D.locked()) && !overlayShown()) { this.startRun(); } return; }
         if (this.state !== 'play') { return; }
         if (y >= FIELD_B) {
@@ -465,6 +522,7 @@
             return;
         }
         var buys = { 49: 'spark', 50: 'lancer', 51: 'bulwark' }, sels = { 81: 'all', 87: 'spark', 69: 'lancer', 82: 'bulwark' };
+        if (this.state === 'title' && buys[code]) { this.setLevel(LEVEL_KEYS[code - 49]); return; }
         if (this.state === 'play' && buys[code]) { this.buy('you', buys[code]); }
         if (this.state === 'play' && sels[code]) { this.selected = sels[code]; }
     };
@@ -628,7 +686,7 @@
         ctx.textAlign = 'center'; ctx.font = 'bold 14px Arial, sans-serif'; ctx.fillStyle = '#00f0ff';
         ctx.fillText(this.clock(), W / 2 - 20, 18);
         ctx.font = 'bold 11px Arial, sans-serif'; ctx.fillStyle = '#b0b0c0';
-        ctx.fillText('💎 ' + this.owned('you') + ' · ' + this.owned('bot'), W / 2 - 20, 36);
+        ctx.fillText('💎 ' + this.owned('you') + ' · ' + this.owned('bot') + '   ' + t('level.' + this.level), W / 2 - 20, 36);
         ctx.textAlign = 'right'; ctx.font = 'bold 15px Arial, sans-serif'; ctx.fillStyle = '#ffdc3c';
         ctx.fillText('⚡ ' + Math.floor(this.energy.you), W - 56, 18);
     };
@@ -675,16 +733,35 @@
             }
             if (this.best || this.streak) { this.center(ctx, t('title.status', { best: num(this.best), streak: this.streak }), 350, 13, '#b0b0c0'); }
         }
-        this.center(ctx, t('tip.counter'), 385, 13, '#e0e0f0');
+        this.center(ctx, t('tip.counter'), 365, 13, '#e0e0f0');
+        this.center(ctx, t('level.pick'), 390, 13, '#b0b0c0');
+        var self = this;
+        this.levelButtons().forEach(function (b) {
+            var on = self.level === b.key;
+            ctx.fillStyle = on ? '#00f0ff' : 'rgba(255,255,255,0.06)';
+            roundRect(ctx, b.x, b.y, b.w, b.h, 10); ctx.fill();
+            ctx.strokeStyle = on ? '#00f0ff' : 'rgba(255,255,255,0.3)'; ctx.lineWidth = 1.5; ctx.stroke();
+            ctx.fillStyle = on ? '#05060f' : '#e0e0f0'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.font = 'bold 15px Arial, sans-serif'; ctx.fillText(t('level.' + b.key), b.x + b.w / 2, b.y + 18);
+            ctx.font = '11px Arial, sans-serif'; ctx.fillText('×' + LEVELS[b.key].mult + ' ' + t('level.points'), b.x + b.w / 2, b.y + 34);
+        });
         ctx.globalAlpha = 0.55 + 0.45 * Math.abs(Math.sin(this.time * 3));
-        this.center(ctx, t(this.touch ? 'title.start.touch' : 'title.start.desktop'), 430, 18, '#ffffff', true);
+        this.center(ctx, t('level.start', { l: t('level.' + this.level) }), 478, 15, '#ffffff', true);
         ctx.globalAlpha = 1;
     };
 
     Game.prototype.drawPause = function (ctx) {
         ctx.fillStyle = 'rgba(5,6,15,0.6)'; ctx.fillRect(0, TOP, W, FIELD_B - TOP);
         this.center(ctx, t('paused'), 260, 34, '#ffffff', true);
-        this.center(ctx, t(this.touch ? 'paused.hint.touch' : 'paused.hint'), 300, 14, '#b0b0c0');
+        this.center(ctx, t(this.touch ? 'paused.hint.touch' : 'paused.hint'), 296, 14, '#b0b0c0');
+        var b = this.pauseButtons();
+        ctx.fillStyle = 'rgba(0,240,255,0.15)'; roundRect(ctx, b.resume.x, b.resume.y, b.resume.w, b.resume.h, 10); ctx.fill();
+        ctx.strokeStyle = '#00f0ff'; ctx.lineWidth = 2; ctx.stroke();
+        ctx.fillStyle = 'rgba(255,0,200,0.12)'; roundRect(ctx, b.surrender.x, b.surrender.y, b.surrender.w, b.surrender.h, 10); ctx.fill();
+        ctx.strokeStyle = '#ff00c8'; ctx.stroke();
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = 'bold 16px Arial, sans-serif';
+        ctx.fillStyle = '#00f0ff'; ctx.fillText(t('resume'), W / 2, b.resume.y + b.resume.h / 2);
+        ctx.fillStyle = '#ff00c8'; ctx.fillText(t('surrender'), W / 2, b.surrender.y + b.surrender.h / 2);
     };
 
     // ---------------------------------------------------------------- the loop
@@ -709,5 +786,5 @@
         window.requestAnimationFrame(function (n) { self.frame(n); });
     };
 
-    window.NeonCommand = { Game: Game, dayPlan: dayPlan, UNITS: UNITS, W: W, H: H, FIELD_B: FIELD_B };
+    window.NeonCommand = { Game: Game, dayPlan: dayPlan, UNITS: UNITS, LEVELS: LEVELS, W: W, H: H, FIELD_B: FIELD_B };
 })();

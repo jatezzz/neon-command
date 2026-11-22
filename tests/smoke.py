@@ -20,8 +20,8 @@ with sync_playwright() as p:
         return box[0] + fx * box[2] / 400, box[1] + fy * box[3] / 640
     pg.screenshot(path="/out/c01-title.png")
     pg.touchscreen.tap(*at(200, 300)); pg.wait_for_timeout(300)
-    check("tap starts", pg.evaluate("game.state") == "play")
-    pg.evaluate("game.energy.you = 400")
+    check("tap starts on the remembered level, with a starting army", pg.evaluate("game.state") == "play" and pg.evaluate("game.level") == "easy" and pg.evaluate("game.units.filter(u => u.side === 'you').length") == 3)
+    pg.evaluate("game.units = game.units.filter(u => u.side !== 'you'); game.energy.you = 400")
     lay = pg.evaluate("game.barLayout()")
     spark = [l for l in lay if l["kind"] == "buy" and l["unit"] == "spark"][0]
     pg.touchscreen.tap(*at(spark["x"] + 20, spark["y"] + 20)); pg.wait_for_timeout(150)
@@ -41,8 +41,18 @@ with sync_playwright() as p:
     check("pause freezes", pg.evaluate("game.paused") and t0 == t1)
     pg.touchscreen.tap(*at(200, 300)); pg.wait_for_timeout(150)
     check("tap resumes", not pg.evaluate("game.paused"))
+    pg.locator("#pauseBtn").dispatch_event("pointerdown"); pg.wait_for_timeout(200)
+    pg.screenshot(path="/out/c02b-pause.png")
+    sb = pg.evaluate("game.pauseButtons().surrender")
+    pg.touchscreen.tap(*at(sb["x"] + 50, sb["y"] + 20)); pg.wait_for_timeout(300)
+    check("give up ends the battle as a loss", pg.evaluate("game.state") in ("ending", "over") and not pg.evaluate("game.won"), pg.evaluate("game.state"))
     # a full battle in fast-forward with the test player
     pg.goto(BASE + "?debug=true&day=2026-11-23&vs=2000"); pg.wait_for_timeout(500)
+    lv = pg.evaluate("game.levelButtons()")
+    hard = [l for l in lv if l["key"] == "hard"][0]
+    pg.touchscreen.tap(*at(hard["x"] + 30, hard["y"] + 20)); pg.wait_for_timeout(200)
+    check("title: tap a level picks it and starts", pg.evaluate("game.level") == "hard" and pg.evaluate("game.state") == "play")
+    pg.evaluate("game.setLevel('easy'); game.state = 'title'")
     pg.add_script_tag(content=P)
     r = pg.evaluate("() => { NCPlayer.install(game, {}); let n = 0; while (game.state !== 'ending' && game.state !== 'over' && n < 120 * 900) { game.update(1/120); n++; } return {state: game.state, won: game.won, score: game.score, minutes: +(game.battle/60).toFixed(1)}; }")
     R["battle"] = r
@@ -51,7 +61,7 @@ with sync_playwright() as p:
     pg.wait_for_timeout(2600)
     check("game-over card", pg.evaluate("!document.getElementById('gameover').hidden"))
     share = pg.evaluate("NeonDaily.shareMessage()"); R["share"] = share
-    check("share text", share and "Neon Command · Batalla #2" in share and "/play/neon-command?d=2026-11-23" in share, share)
+    check("share text", share and "Neon Command · Batalla #2" in share and "(Fácil)" in share and "/play/neon-command?d=2026-11-23" in share, share)
     pg.screenshot(path="/out/c04-over.png")
     ctx.close()
     plans = []

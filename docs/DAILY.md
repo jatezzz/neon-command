@@ -17,10 +17,13 @@ The simulation runs at a fixed 120 steps per second; the bot thinks every half s
 
 | What | Points |
 |---|---|
-| Enemy unit destroyed | 10 |
+| Enemy unit destroyed | 5 |
 | Crystal captured | 25 |
-| Damage to the enemy core | 1 per 4 (cores take half damage from units) |
-| Victory | 1000 + 2 per second under 8 minutes + up to 300 for the core you kept |
+| Damage to the enemy core | 1 per 8 (cores take half damage from units until sudden death) |
+| Victory | 1000 + 3 per second under 10 minutes + up to 300 for the core you kept |
+
+At the end the score is multiplied by the level: Easy ×0.6, Normal ×1, Hard ×1.4. The level travels in the shared text
+and in the `over` counter (`df`).
 
 ## Shared results
 

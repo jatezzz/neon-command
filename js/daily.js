@@ -186,7 +186,7 @@
     function shareText(result, summary) {
         var lines = [
             I.t('share.head', { n: challengeNumber(), date: I.shortDate(today()) }),
-            '⚔️ ' + I.t(result.wall ? 'share.line.win' : 'share.line.lose', { s: I.number(result.score), w: result.time }) +
+            '⚔️ ' + I.t(result.wall ? 'share.line.win' : 'share.line.lose', { s: I.number(result.score), w: result.time, d: result.levelName }) +
                 (summary.streak > 1 ? ' · 🔥 ' + I.t('share.streak', { n: summary.streak }) : ''),
             wallRow(result.wall)
         ];
@@ -286,14 +286,14 @@
     function onGameOver(game) {
         //  wall = 1 for a win, bricks = enemy units destroyed, maxCombo = crystals held at the end, powers = units built.
         var result = { score: game.score, wall: game.won ? 1 : 0, bricks: game.stats.kills, maxCombo: game.stats.crystals,
-                       powers: game.stats.built, time: game.clock() };
+                       powers: game.stats.built, time: game.clock(), level: game.level, levelName: I.t('level.' + game.level) };
         var summary = recordRun(result);
         var o = outcome(result.score);
         //  One of three lines per outcome, picked by the score so the same result always reads the same.
         var joke = o ? I.t('joke.' + o + '.' + target.by + '.' + (result.score % 3)) : '';
         var headline = o ? I.t('over.' + o, { t: I.number(target.score), n: I.number(Math.abs(result.score - target.score)) }) : '';
         lastShare = { text: shareText(result, summary), url: shareUrl(result.score), outcome: o, headline: headline, joke: joke };
-        track('over', { s: result.score, w: result.wall, k: result.bricks, c: result.maxCombo, p: result.powers, n: summary.attempts,
+        track('over', { s: result.score, w: result.wall, k: result.bricks, c: result.maxCombo, p: result.powers, df: result.level, n: summary.attempts,
                         o: o || '', vs: target ? target.score : '' });
         //  A portal that embeds the game with its SDK shows its own game-over screen over this one.
         if (!overlay || (embedded && window.PortalSDK)) { return summary; }
