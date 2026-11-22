@@ -40,6 +40,12 @@
     var SIDE = { you: { color: '#00f0ff', dim: 'rgba(0,240,255,0.25)' }, bot: { color: '#ff00c8', dim: 'rgba(255,0,200,0.25)' } };
 
     var I = window.NeonI18n, D = window.NeonDaily;
+
+    //  The battlefield floor from the game's art (img/bg.jpg): a neon grid seen from above, magenta haze on the bot's side,
+    //  cyan on yours. Dimmed under the units; the plain gradient shows until it loads.
+    var BACKDROP = new Image(), backdropReady = false;
+    BACKDROP.onload = function () { backdropReady = true; };
+    BACKDROP.src = 'img/bg.jpg?v=1';
     function t(key, vars) { return I ? I.t(key, vars) : key; }
     function num(n) { return I ? I.number(n) : String(n); }
     function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
@@ -593,12 +599,19 @@
         var ctx = this.ctx, i, self = this;
         ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         ctx.setTransform(this.ratio, 0, 0, this.ratio, 0, 0);
-        var g = ctx.createLinearGradient(0, TOP, 0, FIELD_B);
-        g.addColorStop(0, '#1a0820'); g.addColorStop(0.5, '#07081a'); g.addColorStop(1, '#03131a');
-        ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-        ctx.strokeStyle = 'rgba(177,77,255,0.10)'; ctx.lineWidth = 1;
-        for (var gx = 0; gx <= W; gx += 40) { ctx.beginPath(); ctx.moveTo(gx, TOP); ctx.lineTo(gx, FIELD_B); ctx.stroke(); }
-        for (var gy = TOP; gy <= FIELD_B; gy += 40) { ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(W, gy); ctx.stroke(); }
+        if (backdropReady) {
+            ctx.fillStyle = '#05060f'; ctx.fillRect(0, 0, W, H);
+            var bs = Math.max(W / BACKDROP.width, (FIELD_B - TOP) / BACKDROP.height), bw = BACKDROP.width * bs, bh = BACKDROP.height * bs;
+            ctx.drawImage(BACKDROP, (W - bw) / 2, TOP + (FIELD_B - TOP - bh) / 2, bw, bh);
+            ctx.fillStyle = 'rgba(5,6,15,0.45)'; ctx.fillRect(0, TOP, W, FIELD_B - TOP);
+        } else {
+            var g = ctx.createLinearGradient(0, TOP, 0, FIELD_B);
+            g.addColorStop(0, '#1a0820'); g.addColorStop(0.5, '#07081a'); g.addColorStop(1, '#03131a');
+            ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+            ctx.strokeStyle = 'rgba(177,77,255,0.10)'; ctx.lineWidth = 1;
+            for (var gx = 0; gx <= W; gx += 40) { ctx.beginPath(); ctx.moveTo(gx, TOP); ctx.lineTo(gx, FIELD_B); ctx.stroke(); }
+            for (var gy = TOP; gy <= FIELD_B; gy += 40) { ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(W, gy); ctx.stroke(); }
+        }
         ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.setLineDash([6, 8]);
         ctx.beginPath(); ctx.moveTo(0, (TOP + FIELD_B) / 2); ctx.lineTo(W, (TOP + FIELD_B) / 2); ctx.stroke(); ctx.setLineDash([]);
 
@@ -620,8 +633,12 @@
         //  Cores.
         ['bot', 'you'].forEach(function (side) {
             var c = self.cores[side], col = SIDE[side].color;
+            //  A platform like the cover's: an outer ring of light, the hexagon, an inner ring.
+            ctx.save(); ctx.globalAlpha = 0.35; ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.shadowColor = col; ctx.shadowBlur = 14;
+            hexagon(ctx, c.x, c.y, CORE_R + 9); ctx.stroke(); ctx.restore();
             ctx.save(); ctx.shadowColor = col; ctx.shadowBlur = 18; ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.fillStyle = 'rgba(5,6,15,0.9)';
             hexagon(ctx, c.x, c.y, CORE_R); ctx.fill(); ctx.stroke(); ctx.restore();
+            ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1; hexagon(ctx, c.x, c.y, CORE_R * 0.72); ctx.stroke();
             ctx.fillStyle = col; hexagon(ctx, c.x, c.y, CORE_R * 0.45 * (0.6 + 0.4 * Math.max(0, c.hp) / CORE_HP)); ctx.fill();
             var bw = 70, frac = Math.max(0, c.hp) / CORE_HP, by = side === 'bot' ? c.y + CORE_R + 6 : c.y - CORE_R - 10;
             ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.fillRect(c.x - bw / 2, by, bw, 4);
@@ -630,8 +647,13 @@
         //  Units.
         this.units.forEach(function (u) {
             var spec = UNITS[u.kind], col = u.flash > 0 ? '#ffffff' : SIDE[u.side].color;
-            ctx.save(); ctx.shadowColor = SIDE[u.side].color; ctx.shadowBlur = 8; ctx.fillStyle = col;
-            unitShape(ctx, spec.shape, u.x, u.y, spec.r, u.side === 'you'); ctx.fill(); ctx.restore();
+            //  Its glow on the floor, slightly below, like the cover's reflections.
+            ctx.save(); ctx.globalAlpha = 0.25; ctx.fillStyle = SIDE[u.side].color;
+            ctx.beginPath(); ctx.ellipse(u.x, u.y + spec.r + 2, spec.r * 1.1, spec.r * 0.4, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+            ctx.save(); ctx.shadowColor = SIDE[u.side].color; ctx.shadowBlur = 10; ctx.fillStyle = col;
+            unitShape(ctx, spec.shape, u.x, u.y, spec.r, u.side === 'you'); ctx.fill();
+            ctx.shadowBlur = 0; ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 1;
+            unitShape(ctx, spec.shape, u.x, u.y, spec.r, u.side === 'you'); ctx.stroke(); ctx.restore();
             if (u.side === 'you' && (self.selected === 'all' || self.selected === u.kind) && self.state === 'play') {
                 ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(u.x, u.y, spec.r + 4, 0, Math.PI * 2); ctx.stroke();
             }
