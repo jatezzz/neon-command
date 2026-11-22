@@ -10,7 +10,7 @@ abierto, hecho con JavaScript, CSS y HTML puros: sin frameworks, sin paso de com
 *English: a small real-time strategy game against a bot, with a new map every day. Open-source browser game in plain
 JavaScript. Add `?lang=en` for English.*
 
-![Neon Command](og.png)
+![Neon Command](og.jpg)
 
 ## Cómo se juega
 
