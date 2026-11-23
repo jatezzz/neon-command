@@ -230,6 +230,8 @@
         if (this.assist && this.assist.on && this.battle > 2 && say('assist', 9999)) { return; }
         if (c.pending) { var p = c.pending; c.pending = null; c.gap = Math.min(c.gap, 0); if (say(p, 12, { n: c.n })) { return; } }
         if (this.energy.you >= 150 && mine < CAP && say('energy', 20, { e: Math.floor(this.energy.you) })) { return; }
+        //  Winning the map but not the battle: the next step is the bot's core.
+        if (this.owned('you') >= 4 && mine >= 8 && this.cores.bot.hp >= CORE_HP * 0.98 && say('push', 25, { m: mine })) { return; }
         //  A good army standing still while the bot holds the crystals: send it.
         if (mine >= 5 && this.battle - (c.lastOrder || 0) > 15 && this.owned('bot') >= 3 && say('idle', 20, { m: mine })) { return; }
         if (botN >= mine * 2 + 2 && say('outnumbered', 25, { b: botN, m: mine })) { return; }
@@ -257,7 +259,7 @@
         var home = this.cores.you;                         // secure your side first: the crystal nearest your core
         var free = this.crystals.filter(function (c) { return c.owner !== 'you'; })
             .sort(function (p, q) { return (Math.abs(p.x - home.x) + Math.abs(p.y - home.y)) - (Math.abs(q.x - home.x) + Math.abs(q.y - home.y)); });
-        var goal = free.length ? free[0] : (idle.length >= 10 ? this.cores.bot : null);
+        var goal = free.length ? free[0] : (idle.length >= 8 ? this.cores.bot : null);
         if (goal && idle.every(function (u) { return u.goal && Math.abs(u.goal.x - goal.x) < 14 && Math.abs(u.goal.y - goal.y) < 14; })) { return; }
         if (!goal) { return; }
         idle.forEach(function (u, i) { u.goal = { x: goal.x + Math.cos(i * 2.4) * 10, y: goal.y + Math.sin(i * 2.4) * 10 }; });
