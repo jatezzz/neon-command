@@ -160,7 +160,7 @@
         this.reported = -1;
         this.goalPassed = false;
         this.nextId = 1;
-        this.flows = []; this.front = null; this.auto = false; this.dom = null; this.secondWind = false; this.wave = null; this.ePulse = 0;
+        this.flows = []; this.zaps = []; this.order0 = null; this.front = null; this.auto = false; this.dom = null; this.secondWind = false; this.wave = null; this.ePulse = 0;
         this.queue = [];                                  // buys waiting for energy (yours only), at most 3
         //  The coach: one short tip at a time, when it helps (Easy and Normal). JOHN-429, from recorded play.
         this.coach = { on: this.level !== 'hard', gap: 4, said: {}, line: null, life: 0, pending: null };
@@ -317,12 +317,21 @@
             if (u.side === 'you' && (sel === 'all' || u.kind === sel)) { u.goal = { x: x, y: y }; n++; }
         });
         if (sel === 'all') { this.rally = { x: x, y: Math.max(y, (TOP + FIELD_B) / 2) }; this.front = { x: x, y: y }; }
-        this.marker = { x: x, y: y, life: 0.6 };
+        this.marker = { x: x, y: y, life: 1.0 };
+        var gx = 0, gy = 0, gn = 0;
+        this.units.forEach(function (u) { if (u.side === 'you' && (sel === 'all' || u.kind === sel)) { gx += u.x; gy += u.y; gn++; u.ack = 0.5; } });
+        this.order0 = gn ? { x1: gx / gn, y1: gy / gn, x2: x, y2: y, life: 0.7 } : null;
         this.log('order', { sel: sel, x: Math.round(x), y: Math.round(y), n: n, via: via || 'tap' });
         this.coach.lastOrder = this.battle;
         if (n === 0) { this.coach.pending = 'empty'; }
         else if (y < (TOP + FIELD_B) / 2 && n < 4 && this.battle > 5) { this.coach.pending = 'few'; this.coach.n = n; }
-        this.sound.tone(520, 0.05, 'sine', 0.05);
+        this.sound.tone(n ? 520 : 220, 0.06, 'sine', 0.06, n ? 780 : 180);
+        //  Groups sent apart: a small group far from the rest of your army.
+        if (sel !== 'all' && n > 0 && n < 5 && this.battle > 10) {
+            var ox = 0, oy = 0, on = 0;
+            this.units.forEach(function (u) { if (u.side === 'you' && u.kind !== sel) { ox += u.x; oy += u.y; on++; } });
+            if (on >= 2 && dist2({ x: ox / on, y: oy / on }, { x: x, y: y }) > 150 * 150 && !this.coach.pending) { this.coach.pending = 'split'; }
+        }
     };
 
     // ---------------------------------------------------------------- the bot
@@ -450,6 +459,16 @@
             }
             u.x = clamp(u.x + mx * dt, 6, W - 6);
             u.y = clamp(u.y + my * dt, TOP + 6, FIELD_B - 6);
+            //  For the drawing: how fast it moves, where it faces (its target, else where it walks), its stride.
+            u.vx = mx; u.vy = my;
+            var sp = Math.sqrt(mx * mx + my * my);
+            if (sp > 2) { u.step = (u.step || 0) + sp * dt * 0.35; }
+            var fx = u.target ? u.target.x - u.x : mx, fy = u.target ? u.target.y - u.y : my;
+            if (fx * fx + fy * fy > 1) {
+                var want = Math.atan2(fy, fx), cur = u.face === undefined ? want : u.face;
+                var diff = Math.atan2(Math.sin(want - cur), Math.cos(want - cur));
+                u.face = cur + diff * Math.min(1, dt * 10);
+            }
         }
     };
 
@@ -458,12 +477,20 @@
         this.units.forEach(function (u) {
             var spec = UNITS[u.kind];
             u.cool -= dt; if (u.flash > 0) { u.flash -= dt; }
+            if (u.atk > 0) { u.atk -= dt; } if (u.hurt > 0) { u.hurt -= dt; }
+            //  Badly hurt units smoke.
+            if (u.hp < spec.hp * 0.35 && Math.random() < dt * 5 && self.particles.length < 300) {
+                self.particles.push({ x: u.x + (Math.random() - 0.5) * 6, y: u.y - 3, vx: (Math.random() - 0.5) * 10, vy: -25 - Math.random() * 15,
+                                      life: 0.5 + Math.random() * 0.3, color: 'rgba(170,170,200,0.7)' });
+            }
             var e = u.target;
             if (!e || e.hp <= 0 || u.cool > 0) { return; }
             var reach = spec.range + (e.kind ? UNITS[e.kind].r : CORE_R) + 1;
             if (dist2(u, e) > reach * reach) { return; }
-            u.cool = spec.every;
+            u.cool = spec.every; u.atk = 0.22;
             var dmg = spec.dmg * (e.kind && spec.beats === e.kind ? 2 : 1);
+            if (u.kind === 'spark') { self.zaps.push({ x1: u.x, y1: u.y, x2: e.x, y2: e.y, side: u.side, life: 0.14 }); }
+            else if (u.kind === 'bulwark') { self.zaps.push({ ring: true, x: e.x, y: e.y, side: u.side, life: 0.25 }); }
             if (spec.shot) {
                 self.shots.push({ x: u.x, y: u.y, target: e, dmg: dmg, side: u.side, speed: 260 });
                 self.sound.tone(900, 0.04, 'square', 0.025, 600, 'shot');
@@ -498,7 +525,7 @@
         }
         e.hp -= dmg;
         if (!e.kind && !e.breached && e.hp > 0 && e.hp <= CORE_HP * BREACH) { this.breach(e); }
-        if (e.kind) { e.flash = 0.08; }
+        if (e.kind) { e.flash = 0.08; e.hurt = 0.22; }
         else {
             if (side === 'you' && this.state === 'play') { this.stats.damage += dmg; this.addScore(Math.round(dmg / 8)); }
             this.impact(e.side === 'you' ? 2 : 1, 0.08);
@@ -790,6 +817,8 @@
         }
     };
     Game.prototype.updateEffects = function (dt) {
+        for (var z = (this.zaps || []).length - 1; z >= 0; z--) { this.zaps[z].life -= dt; if (this.zaps[z].life <= 0) { this.zaps.splice(z, 1); } }
+        if (this.order0 && (this.order0.life -= dt) <= 0) { this.order0 = null; }
         if (this.fx.shake > 0) { this.fx.shake -= dt; }
         if (this.fx.flash > 0) { this.fx.flash -= dt; }
         for (var i = this.particles.length - 1; i >= 0; i--) {
@@ -831,6 +860,114 @@
         else { ctx.rect(x - r, y - r, r * 2, r * 2); }
         ctx.closePath();
     }
+
+    //  One unit, animated: it faces its target or its way, strides as it moves, shows its job when it attacks
+    //  (a Spark lunges and zaps, a Lancer charges its lance and recoils, a Bulwark slams its shield) and shows its
+    //  damage (shakes when hit, cracks below 60 %, flickers and smokes below 35 %).
+    Game.prototype.drawUnit = function (ctx, u, icon) {
+        var spec = UNITS[u.kind], side = SIDE[u.side] ? SIDE[u.side].color : '#00f0ff', R = spec.r * (icon ? (u.kind === 'bulwark' ? 0.8 : 1.05) : 1.45);
+        var hpf = Math.max(0, u.hp) / spec.hp, tm = this.time || 0;
+        var face = u.face !== undefined ? u.face : (u.side === 'bot' ? Math.PI / 2 : -Math.PI / 2);
+        var moving = !icon && (u.vx || 0) * (u.vx || 0) + (u.vy || 0) * (u.vy || 0) > 4;
+        var hurt = !icon && u.hurt > 0 ? u.hurt / 0.22 : 0, atk = !icon && u.atk > 0 ? u.atk / 0.22 : 0;
+        var x = u.x + (hurt ? (Math.random() - 0.5) * 3 * hurt : 0), y = u.y + (hurt ? (Math.random() - 0.5) * 3 * hurt : 0);
+        var stride = moving ? Math.sin(u.step || 0) : 0;
+        var body = u.flash > 0 ? '#ffffff' : side;
+        var alpha = (!icon && hpf < 0.35) ? 0.55 + 0.45 * Math.abs(Math.sin(tm * 18 + u.id)) : 1;
+        if (!icon) {
+            //  Its glow on the floor, like the cover's reflections.
+            ctx.save(); ctx.globalAlpha = 0.22; ctx.fillStyle = side;
+            ctx.beginPath(); ctx.ellipse(u.x, u.y + R + 2, R * 1.1, R * 0.38, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+            //  Movement: speed lines (Spark), an engine flame (Lancer), dust from the treads (Bulwark).
+            if (moving) {
+                var bx = -Math.cos(face), by = -Math.sin(face);
+                ctx.save(); ctx.strokeStyle = side; ctx.fillStyle = side; ctx.lineCap = 'round';
+                if (u.kind === 'spark') {
+                    ctx.globalAlpha = 0.5; ctx.lineWidth = 1.2;
+                    for (var k = -1; k <= 1; k++) {
+                        var px = -by * k * 3.5, py = bx * k * 3.5, l0 = R * 1.1, l1 = R * (2.2 + 0.6 * Math.abs(Math.sin((u.step || 0) * 2 + k)));
+                        ctx.beginPath(); ctx.moveTo(x + bx * l0 + px, y + by * l0 + py); ctx.lineTo(x + bx * l1 + px, y + by * l1 + py); ctx.stroke();
+                    }
+                } else if (u.kind === 'lancer') {
+                    var fl = R * (1.5 + 0.5 * Math.abs(Math.sin(tm * 30 + u.id)));
+                    ctx.globalAlpha = 0.75; ctx.fillStyle = '#ffdc3c';
+                    ctx.beginPath(); ctx.moveTo(x + bx * R * 0.9 - by * 2.5, y + by * R * 0.9 + bx * 2.5); ctx.lineTo(x + bx * fl, y + by * fl);
+                    ctx.lineTo(x + bx * R * 0.9 + by * 2.5, y + by * R * 0.9 - bx * 2.5); ctx.closePath(); ctx.fill();
+                } else {
+                    ctx.globalAlpha = 0.3;
+                    for (var d2 = 0; d2 < 2; d2++) {
+                        var ph = ((u.step || 0) * 0.5 + d2 * 0.5) % 1, dd = R * (1.1 + ph * 1.2);
+                        ctx.beginPath(); ctx.arc(x + bx * dd + (d2 ? by : -by) * R * 0.7, y + by * dd + (d2 ? -bx : bx) * R * 0.7, 1.5 + ph * 2, 0, Math.PI * 2); ctx.fill();
+                    }
+                }
+                ctx.restore();
+            }
+        }
+        ctx.save(); ctx.translate(x, y); ctx.rotate(face + Math.PI / 2);       // local frame: forward is up (-y)
+        ctx.globalAlpha = alpha; ctx.shadowColor = side; ctx.shadowBlur = icon ? 6 : 10; ctx.fillStyle = body; ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1;
+        if (u.kind === 'spark') {
+            //  A dart that flaps as it runs and lunges when it strikes.
+            var lunge = atk ? -4 * Math.sin(atk * Math.PI) : 0, wing = 1 + 0.12 * stride;
+            ctx.translate(0, lunge);
+            ctx.beginPath(); ctx.moveTo(0, -R * 1.35); ctx.lineTo(R * 0.95 * wing, R * 0.95); ctx.lineTo(0, R * 0.4); ctx.lineTo(-R * 0.95 * wing, R * 0.95); ctx.closePath();
+            ctx.fill(); ctx.shadowBlur = 0; ctx.stroke();
+            ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.moveTo(0, -R * 0.7); ctx.lineTo(R * 0.3, R * 0.25); ctx.lineTo(-R * 0.3, R * 0.25); ctx.closePath(); ctx.fill();
+            //  Static crackling around it, stronger when it attacks.
+            if (!icon && (atk || Math.sin(tm * 13 + u.id * 3) > 0.7)) {
+                ctx.strokeStyle = '#ffffff'; ctx.globalAlpha = alpha * (atk ? 1 : 0.6); ctx.lineWidth = 1;
+                var a0 = tm * 9 + u.id; ctx.beginPath();
+                ctx.moveTo(Math.cos(a0) * R * 1.3, Math.sin(a0) * R * 1.3); ctx.lineTo(Math.cos(a0 + 0.4) * R * 1.7, Math.sin(a0 + 0.4) * R * 1.7);
+                ctx.lineTo(Math.cos(a0 + 0.8) * R * 1.25, Math.sin(a0 + 0.8) * R * 1.25); ctx.stroke();
+            }
+        } else if (u.kind === 'lancer') {
+            //  A diamond carrying a long lance: the tip charges up between shots, the body recoils when it fires.
+            var recoil = atk ? 3.5 * atk : 0, charge = icon ? 0.6 : Math.max(0, Math.min(1, 1 - (u.cool || 0) / spec.every));
+            ctx.translate(0, recoil);
+            ctx.beginPath(); ctx.moveTo(0, -R * 1.05); ctx.lineTo(R * 0.75, 0); ctx.lineTo(0, R * 1.05); ctx.lineTo(-R * 0.75, 0); ctx.closePath();
+            ctx.fill(); ctx.shadowBlur = 0; ctx.stroke();
+            ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+            ctx.beginPath(); ctx.moveTo(0, -R * 0.4); ctx.lineTo(0, -R * 2.0); ctx.stroke();
+            ctx.fillStyle = '#ffdc3c'; ctx.shadowColor = '#ffdc3c'; ctx.shadowBlur = 4 + 10 * charge;
+            ctx.beginPath(); ctx.arc(0, -R * 2.0, 1 + 2.2 * charge, 0, Math.PI * 2); ctx.fill();
+            ctx.shadowBlur = 0; ctx.fillStyle = 'rgba(5,6,15,0.85)'; ctx.beginPath(); ctx.arc(0, 0, R * 0.28, 0, Math.PI * 2); ctx.fill();
+        } else {
+            //  A heavy block on treads, its shield in front; the shield slams forward when it hits.
+            var slam = atk ? -5 * Math.sin(atk * Math.PI) : 0, s2 = R * 0.95;
+            ctx.fillStyle = 'rgba(255,255,255,0.25)';
+            for (var tr = 0; tr < 2; tr++) {
+                var tx0 = tr ? s2 * 0.95 : -s2 * 1.3;
+                ctx.fillRect(tx0, -s2 * 0.9, s2 * 0.35, s2 * 1.8);
+                ctx.fillStyle = 'rgba(255,255,255,0.55)';
+                var off = ((u.step || 0) * 3) % 4;
+                for (var st = -2; st <= 2; st++) { ctx.fillRect(tx0, st * 4 + off - 2, s2 * 0.35, 1); }
+                ctx.fillStyle = 'rgba(255,255,255,0.25)';
+            }
+            ctx.fillStyle = body; roundRect(ctx, -s2, -s2 * 0.85, s2 * 2, s2 * 1.8, 2.5); ctx.fill(); ctx.shadowBlur = 0; ctx.stroke();
+            ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3; ctx.shadowColor = side; ctx.shadowBlur = 8; ctx.lineCap = 'round';
+            ctx.beginPath(); ctx.arc(0, -s2 * 0.1 + slam, s2 * 1.45, -Math.PI * 0.82, -Math.PI * 0.18); ctx.stroke();
+            ctx.shadowBlur = 0; ctx.fillStyle = 'rgba(5,6,15,0.8)'; ctx.fillRect(-s2 * 0.45, -s2 * 0.35, s2 * 0.9, s2 * 0.7);
+        }
+        //  Damage: cracks below 60 %.
+        if (!icon && hpf < 0.6) {
+            ctx.globalAlpha = alpha * 0.85; ctx.strokeStyle = '#05060f'; ctx.lineWidth = 1.2; ctx.shadowBlur = 0;
+            ctx.beginPath(); ctx.moveTo(-R * 0.5, -R * 0.4); ctx.lineTo(-R * 0.05, R * 0.05); ctx.lineTo(-R * 0.3, R * 0.5);
+            if (hpf < 0.35) { ctx.moveTo(R * 0.5, -R * 0.2); ctx.lineTo(R * 0.1, R * 0.15); }
+            ctx.stroke();
+        }
+        ctx.restore();
+        if (icon) { return; }
+        //  Selected (and just ordered: a brief bright ring).
+        if (u.side === 'you' && (this.selected === 'all' || this.selected === u.kind) && this.state === 'play') {
+            ctx.save(); ctx.strokeStyle = u.ack > 0 ? 'rgba(255,255,255,' + (0.35 + u.ack) + ')' : 'rgba(255,255,255,0.22)'; ctx.lineWidth = u.ack > 0 ? 2 : 1;
+            ctx.beginPath(); ctx.arc(u.x, u.y + R * 0.9, R + 2 + (u.ack > 0 ? u.ack * 6 : 0), 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke(); ctx.restore();
+        }
+        if (u.ack > 0) { u.ack -= 1 / 60; }
+        if (u.hp < spec.hp) {
+            var hc = hpf > 0.6 ? side : (hpf > 0.35 ? '#ffdc3c' : '#ff5a6a');
+            ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(u.x - 9, u.y - R - 9, 18, 3);
+            ctx.fillStyle = hc; ctx.fillRect(u.x - 9, u.y - R - 9, 18 * hpf, 3);
+        }
+    };
 
     Game.prototype.draw = function () {
         var ctx = this.ctx, i, self = this;
@@ -894,33 +1031,48 @@
             ctx.fillStyle = c.breached ? '#ffdc3c' : col; ctx.fillRect(c.x - bw / 2, by, bw * frac, 4);
         });
         //  Units.
-        this.units.forEach(function (u) {
-            var spec = UNITS[u.kind], col = u.flash > 0 ? '#ffffff' : SIDE[u.side].color;
-            //  Its glow on the floor, slightly below, like the cover's reflections.
-            ctx.save(); ctx.globalAlpha = 0.25; ctx.fillStyle = SIDE[u.side].color;
-            ctx.beginPath(); ctx.ellipse(u.x, u.y + spec.r + 2, spec.r * 1.1, spec.r * 0.4, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
-            ctx.save(); ctx.shadowColor = SIDE[u.side].color; ctx.shadowBlur = 10; ctx.fillStyle = col;
-            unitShape(ctx, spec.shape, u.x, u.y, spec.r, u.side === 'you'); ctx.fill();
-            ctx.shadowBlur = 0; ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 1;
-            unitShape(ctx, spec.shape, u.x, u.y, spec.r, u.side === 'you'); ctx.stroke(); ctx.restore();
-            if (u.side === 'you' && (self.selected === 'all' || self.selected === u.kind) && self.state === 'play') {
-                ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(u.x, u.y, spec.r + 4, 0, Math.PI * 2); ctx.stroke();
+        this.units.forEach(function (u) { self.drawUnit(ctx, u); });
+        //  Spark zaps and bulwark slams.
+        (this.zaps || []).forEach(function (z) {
+            var col = SIDE[z.side].color;
+            ctx.save(); ctx.strokeStyle = col; ctx.shadowColor = col; ctx.shadowBlur = 8;
+            if (z.ring) {
+                var k = 1 - z.life / 0.25; ctx.globalAlpha = 1 - k; ctx.lineWidth = 3;
+                ctx.beginPath(); ctx.arc(z.x, z.y, 4 + k * 14, 0, Math.PI * 2); ctx.stroke();
+            } else {
+                ctx.globalAlpha = Math.min(1, z.life / 0.14 * 1.5); ctx.lineWidth = 1.6; ctx.strokeStyle = '#ffffff';
+                ctx.beginPath(); ctx.moveTo(z.x1, z.y1);
+                for (var q = 1; q < 4; q++) {
+                    var f = q / 4; ctx.lineTo(z.x1 + (z.x2 - z.x1) * f + (Math.random() - 0.5) * 7, z.y1 + (z.y2 - z.y1) * f + (Math.random() - 0.5) * 7);
+                }
+                ctx.lineTo(z.x2, z.y2); ctx.stroke();
             }
-            if (u.hp < spec.hp) {
-                ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(u.x - 8, u.y - spec.r - 7, 16, 3);
-                ctx.fillStyle = SIDE[u.side].color; ctx.fillRect(u.x - 8, u.y - spec.r - 7, 16 * Math.max(0, u.hp) / spec.hp, 3);
-            }
+            ctx.restore();
         });
         //  Shots.
-        ctx.lineWidth = 2;
         this.shots.forEach(function (s) {
-            ctx.strokeStyle = SIDE[s.side].color; ctx.beginPath(); ctx.moveTo(s.x, s.y);
-            var dx = s.target.x - s.x, dy = s.target.y - s.y, d = Math.sqrt(dx * dx + dy * dy) || 1;
-            ctx.lineTo(s.x - dx / d * 8, s.y - dy / d * 8); ctx.stroke();
+            var dx = s.target.x - s.x, dy = s.target.y - s.y, d = Math.sqrt(dx * dx + dy * dy) || 1, col = SIDE[s.side].color;
+            ctx.save(); ctx.strokeStyle = col; ctx.shadowColor = col; ctx.shadowBlur = 8; ctx.lineCap = 'round';
+            ctx.globalAlpha = 0.45; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(s.x - dx / d * 16, s.y - dy / d * 16); ctx.stroke();
+            ctx.globalAlpha = 1; ctx.lineWidth = 2; ctx.strokeStyle = '#ffffff'; ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(s.x - dx / d * 6, s.y - dy / d * 6); ctx.stroke();
+            ctx.restore();
         });
+        if (this.order0) {
+            var o = this.order0;
+            ctx.save(); ctx.globalAlpha = Math.min(1, o.life / 0.7) * 0.8; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5; ctx.setLineDash([5, 6]);
+            ctx.lineDashOffset = -this.time * 40; ctx.beginPath(); ctx.moveTo(o.x1, o.y1); ctx.lineTo(o.x2, o.y2); ctx.stroke(); ctx.restore();
+        }
         if (this.marker) {
-            ctx.strokeStyle = 'rgba(255,255,255,' + this.marker.life + ')'; ctx.lineWidth = 2;
-            ctx.beginPath(); ctx.arc(this.marker.x, this.marker.y, 14 - this.marker.life * 10, 0, Math.PI * 2); ctx.stroke();
+            var mk = this.marker, a = Math.max(0, mk.life), rr = 8 + 22 * Math.max(0, mk.life - 0.6) / 0.4;
+            ctx.save(); ctx.globalAlpha = Math.min(1, a * 1.5); ctx.strokeStyle = '#ffffff'; ctx.shadowColor = '#00f0ff'; ctx.shadowBlur = 10; ctx.lineWidth = 2.5;
+            ctx.beginPath(); ctx.arc(mk.x, mk.y, rr, 0, Math.PI * 2); ctx.stroke();
+            ctx.lineWidth = 2;
+            for (var c4 = 0; c4 < 4; c4++) {
+                var an = c4 * Math.PI / 2 + Math.PI / 4, r1 = rr + 8, r2 = rr + 3;
+                ctx.beginPath(); ctx.moveTo(mk.x + Math.cos(an - 0.25) * r1, mk.y + Math.sin(an - 0.25) * r1); ctx.lineTo(mk.x + Math.cos(an) * r2, mk.y + Math.sin(an) * r2);
+                ctx.lineTo(mk.x + Math.cos(an + 0.25) * r1, mk.y + Math.sin(an + 0.25) * r1); ctx.stroke();
+            }
+            ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(mk.x, mk.y, 2.5, 0, Math.PI * 2); ctx.fill(); ctx.restore();
         }
         ctx.restore();
         for (i = 0; i < this.particles.length; i++) {
@@ -995,7 +1147,9 @@
                 }
                 ctx.strokeStyle = can ? '#00f0ff' : 'rgba(255,255,255,0.2)'; ctx.lineWidth = 2; ctx.stroke();
                 ctx.fillStyle = can ? '#00f0ff' : 'rgba(255,255,255,0.35)';
-                unitShape(ctx, spec.shape, b.x + 18, b.y + b.h / 2, 7, true); ctx.fill();
+                ctx.save(); if (!can) { ctx.globalAlpha = 0.45; }
+                self.drawUnit(ctx, { kind: b.unit, side: 'you', x: b.x + 18, y: b.y + b.h / 2 + 2, hp: spec.hp, face: -Math.PI / 2 }, true);
+                ctx.restore(); ctx.fillStyle = can ? '#00f0ff' : 'rgba(255,255,255,0.35)';
                 ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.font = 'bold 13px Arial, sans-serif';
                 ctx.fillText(t('u.' + b.unit), b.x + 32, b.y + 17);
                 ctx.font = '12px Arial, sans-serif'; ctx.fillStyle = can ? '#ffdc3c' : 'rgba(255,255,255,0.35)';
