@@ -696,6 +696,7 @@
     };
 
     Game.prototype.center = function (ctx, text, y, size, color, glow) {
+        if (window.NeonStage && window.NeonStage.text) { window.NeonStage.text.center(ctx, text, W / 2, y, size, color, glow); return; }      // reads on any stage (neon-stage.js)
         ctx.save(); ctx.font = 'bold ' + size + 'px Arial, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         if (glow) { ctx.shadowColor = color; ctx.shadowBlur = 10; }
         ctx.fillStyle = color; ctx.fillText(text, W / 2, y); ctx.restore();
@@ -747,8 +748,11 @@
 
     Game.prototype.drawTitle = function (ctx) {
         ctx.fillStyle = 'rgba(5,6,15,0.7)'; ctx.fillRect(0, TOP, W, FIELD_B - TOP);
-        this.center(ctx, 'NEON', 150, 52, '#ff00c8', true);
-        this.center(ctx, 'COMMAND', 205, 52, '#00f0ff', true);
+        //  The game's 3D logo (Blender, img/logo.png); the chrome words until it loads.
+        if (!(window.NeonStage && window.NeonStage.text && window.NeonStage.text.logo(ctx, W / 2, 172, 320))) {
+            this.center(ctx, 'NEON', 150, 52, '#ff00c8', true);
+            this.center(ctx, 'COMMAND', 205, 52, '#00f0ff', true);
+        }
         if (D) {
             this.center(ctx, t(D.otherDay() ? 'title.shared' : 'title.daily', { n: D.challengeNumber(), date: I.shortDate(D.today()) }), 262, 16, '#ffffff');
             var goal = D.target;
@@ -763,16 +767,20 @@
         var self = this;
         this.levelButtons().forEach(function (b) {
             var on = self.level === b.key;
-            ctx.fillStyle = on ? '#00f0ff' : 'rgba(255,255,255,0.06)';
+            ctx.fillStyle = on ? '#00f0ff' : 'rgba(5,6,15,0.82)';
             roundRect(ctx, b.x, b.y, b.w, b.h, 10); ctx.fill();
             ctx.strokeStyle = on ? '#00f0ff' : 'rgba(255,255,255,0.3)'; ctx.lineWidth = 1.5; ctx.stroke();
             ctx.fillStyle = on ? '#05060f' : '#e0e0f0'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             ctx.font = 'bold 15px Arial, sans-serif'; ctx.fillText(t('level.' + b.key), b.x + b.w / 2, b.y + 18);
             ctx.font = '11px Arial, sans-serif'; ctx.fillText('×' + LEVELS[b.key].mult + ' ' + t('level.points'), b.x + b.w / 2, b.y + 34);
         });
-        ctx.globalAlpha = 0.55 + 0.45 * Math.abs(Math.sin(this.time * 3));
-        this.center(ctx, t('level.start', { l: t('level.' + this.level) }), 478, 15, '#ffffff', true);
-        ctx.globalAlpha = 1;
+        if (window.NeonStage && window.NeonStage.text) {
+            window.NeonStage.text.plate(ctx, t('level.start', { l: t('level.' + this.level) }), W / 2, 478, 15, '#ffffff', Math.abs(Math.sin(this.time * 3)));
+        } else {
+            ctx.globalAlpha = 0.55 + 0.45 * Math.abs(Math.sin(this.time * 3));
+            this.center(ctx, t('level.start', { l: t('level.' + this.level) }), 478, 15, '#ffffff', true);
+            ctx.globalAlpha = 1;
+        }
     };
 
     Game.prototype.drawPause = function (ctx) {
