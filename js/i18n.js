@@ -1,7 +1,7 @@
 /*
-    Texts for Neon Command in Spanish and English.
+    Texts for Neon Command in Spanish, English and Simplified Chinese.
 
-    Spanish is the default. English is used when the browser language is English, or with ?lang=en.
+    Spanish for Spanish browsers, Chinese for Chinese browsers (or ?lang=zh), English for every other language (or ?lang=en).
     The choice made with ?lang= is remembered in this browser.
 
     NeonI18n.t('key', {n: 3})  -> text with {n} replaced
@@ -268,21 +268,151 @@
             'info.portal': 'more games',
             'rec.neon-raiders': 'Space shooter: beat the bot.',
             'rec.neon-highway': 'Synthwave racer: beat your fastest lap.'
+        },
+        zh: {
+            'rec.neon-command': "策略：打败我的机器人。",
+            'surrender': "认输",
+            'sudden': "突然死亡！",
+            'breach.bot': "核心已破！",
+            'breach.you': "守住你的核心！",
+            'dom.you': "你掌控了地图！",
+            'dom.bot': "机器人掌控了地图！",
+            'secondwind': "绝地反击！+150⚡",
+            'auto.on': "自动购买：开 (B)",
+            'auto.off': "自动购买：关 (B)",
+            'auto.pill': "自动",
+            'coach.crystal': "每个 💎 每秒给你 +3⚡",
+            'resume': "继续",
+            'level.start': "或点击其他地方，以{l}开始",
+            'level.points': "分",
+            'level.hard': "困难",
+            'level.normal': "普通",
+            'level.easy': "简单",
+            'level.pick': "选择难度",
+            'tip.counter': "火花 > 长枪 > 壁垒 > 火花",
+            'coach.few': "只有 {n} 个：先集合再进攻",
+            'coach.idle': "你有 {m} 个单位：一起去占领 💎",
+            'coach.push': "💎 在你手里：带上全部 {m} 个去打它的核心",
+            'coach.finish': "核心已破：花掉你的 {e}⚡ 结束战斗",
+            'coach.split': "分散的队伍会输：按 Q（全部）集合",
+            'sound.on': "声音：开 (M)",
+            'sound.off': "声音：关 (M)",
+            'sound.menu.on': "声音：开",
+            'sound.menu.off': "声音：关",
+            'coach.assist': "简单模式：4 个一组会自己去 💎",
+            'coach.empty': "没有单位：先购买再移动",
+            'coach.energy': "你有 ⚡{e}：多买些单位",
+            'coach.outnumbered': "机器人 {b} 对你 {m}：先防守，集合",
+            'coach.counter': "机器人用的是{k}：{b}造成双倍伤害",
+            'energy': "能量",
+            'lose': "失败",
+            'win': "胜利！",
+            'u.all': "全部",
+            'u.bulwark': "壁垒",
+            'u.lancer': "长枪",
+            'u.spark': "火花",
+            'rec.neon-stack': "一键操作：堆出今天的高塔。",
+            'share.line.lose': "机器人（{d}）在 {w} 打败了我 · {s} 分",
+            'share.line.win': "我用 {w} 打败了机器人（{d}）· {s} 分",
+            'rec.neon-bricks': "打砖块：每天一面新墙。",
+            'page.title': "Neon Command：每日挑战",
+            'title.start.touch': "点击开始",
+            'title.start.desktop': "按空格键或点击开始",
+            'title.daily': "今日之战 #{n} · {date}",
+            'title.shared': "分享的战斗 #{n} · {date}",
+            'title.status': "今日最佳：{best} · 连续：{streak}",
+            'title.more': "更多游戏：{host}",
+            'info.today': "玩今天的战斗",
+            'hud.wall': "{t}",
+            'launch.touch': "在下方购买单位，点击地图让它们移动",
+            'launch.desktop': "在下方购买单位，点击地图让它们移动",
+            'wall.clear': "完美！",
+            'wall.bonus': "+{p}",
+            'power.wide': "金色方块 ×2",
+            'power.multi': "连击！",
+            'power.slow': "方块变大了",
+            'paused': "已暂停",
+            'paused.hint': "按 Esc 或 P 继续",
+            'paused.hint.touch': "点击继续",
+            'pad.pause': "暂停",
+            'over.title': "战斗 #{n} · {date}",
+            'over.points': "分",
+            'over.meta': "用时 {w} 获胜 · ⚔️ 摧毁 {k} · {c} 个单位",
+            'over.meta.plain': "在 {w} 落败 · ⚔️ 摧毁 {k} · {c} 个单位",
+            'over.best': "今日最佳：{best}",
+            'over.newbest': "今日新纪录！",
+            'over.streak.one': "连续：1 天",
+            'over.streak.many': "连续：{n} 天",
+            'over.share': "分享结果",
+            'over.again': "再玩一次",
+            'over.whatsapp': "通过 WhatsApp 发送",
+            'over.copy': "复制文字",
+            'over.copied': "已复制！",
+            'over.try': "接下来试试这个",
+            'over.more': "更多游戏：{host}",
+            'share.head': "Neon Command · 战斗 #{n}（{date}）",
+            'share.line': "{s} 分 · 第 {w} 层",
+            'share.streak': "连续 {n} 天",
+            'share.dare': "你能赢我吗？",
+            'share.dare.score': "敢来挑战我的 {s} 分吗？",
+            'target.title.bot': "目标：超过机器人的 {t} 分",
+            'target.title.player': "目标：超过 {t} 分",
+            'target.verified': "已验证的分数",
+            'target.declared': "挑战者自报的分数",
+            'target.hud': "目标 {t}",
+            'target.passed': "你超过了 {t}！",
+            'over.win': "你领先 {n} 分获胜！",
+            'over.tie': "{t} 分打平",
+            'over.lose': "还差 {n} 分",
+            'joke.win.bot.0': "人类 1，机器 0。",
+            'joke.win.bot.1': "机器人想再来一局。让它等着吧。",
+            'joke.win.bot.2': "练了也没用。",
+            'joke.tie.bot.0': "你和机器人打平了。这说明了什么，不好说。",
+            'joke.tie.bot.1': "和机器同分。有点可疑。",
+            'joke.tie.bot.2': "技术性平局。没人欢呼。",
+            'joke.lose.bot.0': "机器人根本没认真。",
+            'joke.lose.bot.1': "机器依然不败。暂时而已。",
+            'joke.lose.bot.2': "几行代码的程序打败了你。",
+            'joke.win.player.0': "告诉对方吧。温柔一点。",
+            'joke.win.player.1': "现在轮到对方了。",
+            'joke.win.player.2': "这事没完。",
+            'joke.tie.player.0': "分数完全一样。这几乎不可能发生。",
+            'joke.tie.player.1': "总得有人打破平局。",
+            'joke.tie.player.2': "同分。真巧。",
+            'joke.lose.player.0': "就差一点。也许不止一点。",
+            'joke.lose.player.1': "再试一次。就一次。",
+            'joke.lose.player.2': "别告诉任何人。",
+            'share.win.bot': "我比机器人多 {n} 分 💪（它得了 {t}）",
+            'share.tie.bot': "我和机器人打平：{t} 🤝",
+            'share.lose.bot': "我离机器人的 {t} 分还差 {n} 😅",
+            'share.win.player': "我以 {n} 分优势完成了 {t} 分挑战 💪",
+            'share.tie.player': "我打平了挑战：{t} 🤝",
+            'share.lose.player': "我离 {t} 分挑战还差 {n} 😅",
+            'info.desktop': "在下方购买火花、长枪和壁垒；选一个队伍，点击地图派它出发。每个水晶都会给你能量；摧毁机器人的核心。按键：1 2 3 购买 · Q W E R 选择队伍 · A 进攻核心 · S 占领水晶 · D 回家 · B 自动购买 · M 声音 · Esc 或 P 暂停。每天都有新地图和新机器人。",
+            'info.touch': "在下方购买单位，选一个队伍，点击地图派它出发。占领水晶，摧毁机器人的核心。每天都有新地图和新机器人。",
+            'info.mute': "静音",
+            'info.unmute': "取消静音",
+            'info.source': "GitHub 源代码",
+            'info.portal': "更多游戏",
+            'rec.neon-raiders': "太空射击：打败机器人。",
+            'rec.neon-highway': "合成波赛车：刷新你的最快圈速。"
         }
     };
 
     function pickLang() {
-        var forced = (window.location.search.match(/[?&]lang=(es|en)\b/) || [])[1];
+        var forced = (window.location.search.match(/[?&]lang=(es|en|zh)\b/) || [])[1];
         try {
             if (forced) { window.localStorage.setItem('nc.lang', forced); return forced; }
             var saved = window.localStorage.getItem('nc.lang');
-            if (saved === 'es' || saved === 'en') { return saved; }
+            if (saved === 'es' || saved === 'en' || saved === 'zh') { return saved; }
         } catch (err) { if (forced) { return forced; } }
         var nav = (navigator.language || 'es').toLowerCase();
-        return nav.indexOf('en') === 0 ? 'en' : 'es';
+        if (nav.indexOf('es') === 0) { return 'es'; }
+        return nav.indexOf('zh') === 0 ? 'zh' : 'en';
     }
 
     var lang = pickLang();
+    var LOCALE = { es: 'es-EC', en: 'en-US', zh: 'zh-CN' }[lang];
 
     function t(key, vars) {
         var text = STRINGS[lang][key];
@@ -294,21 +424,21 @@
     }
 
     function number(n) {
-        try { return Number(n).toLocaleString(lang === 'es' ? 'es-EC' : 'en-US'); } catch (err) { return String(n); }
+        try { return Number(n).toLocaleString(LOCALE); } catch (err) { return String(n); }
     }
 
     //  Short date such as "18 nov" or "Nov 18" from a YYYY-MM-DD key.
     function shortDate(dayKey) {
         var p = dayKey.split('-');
         var d = new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]), 12);
-        try { return d.toLocaleDateString(lang === 'es' ? 'es-EC' : 'en-US', { day: 'numeric', month: 'short' }).replace('.', ''); }
+        try { return d.toLocaleDateString(LOCALE, { day: 'numeric', month: 'short' }).replace('.', ''); }
         catch (err) { return dayKey; }
     }
 
     function apply(root) {
         var nodes = (root || document).querySelectorAll('[data-i18n]');
         Array.prototype.forEach.call(nodes, function (el) { el.textContent = t(el.getAttribute('data-i18n')); });
-        document.documentElement.lang = lang;
+        document.documentElement.lang = lang === 'zh' ? 'zh-CN' : lang;
         document.title = t('page.title');
     }
 

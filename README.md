@@ -9,7 +9,10 @@ abierto, hecho con JavaScript, CSS y HTML puros: sin frameworks, sin paso de com
   casa; B activa la compra automática; M apaga o enciende el sonido; Esc o P pausan.
 
 *English: a small real-time strategy game against a bot, with a new map every day. Open-source browser game in plain
-JavaScript. Add `?lang=en` for English.*
+JavaScript. It follows the browser language (Spanish, English or Simplified Chinese); force one with `?lang=es`, `?lang=en`
+or `?lang=zh`.*
+
+*简体中文：每天一张新地图的即时战略小游戏，对手是机器人。浏览器语言为中文时自动显示中文，或加 `?lang=zh`。*
 
 ![Neon Command](og.jpg)
 

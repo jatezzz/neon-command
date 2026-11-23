@@ -304,8 +304,8 @@
         if (!mute || !mute.parentNode) { return; }
         var a = document.createElement('a'); a.href = '#'; a.id = 'nsMusic';
         var label = function () {
-            var es = lang() === 'es';
-            a.textContent = es ? (musicOn ? 'música: sí' : 'música: no') : (musicOn ? 'music: on' : 'music: off');
+            var l = lang();
+            a.textContent = l === 'es' ? (musicOn ? 'música: sí' : 'música: no') : l === 'zh' ? (musicOn ? '音乐：开' : '音乐：关') : (musicOn ? 'music: on' : 'music: off');
         };
         label();
         a.addEventListener('click', function (e) {
