@@ -158,6 +158,9 @@
         this.reported = -1;
         this.goalPassed = false;
         this.nextId = 1;
+        this.queue = [];                                  // buys waiting for energy (yours only), at most 3
+        //  The coach: one short tip at a time, when it helps (Easy and Normal). JOHN-429, from recorded play.
+        this.coach = { on: this.level !== 'hard', gap: 4, said: {}, line: null, life: 0, pending: null };
         this.marker = null;
         void mid;
     };
@@ -193,6 +196,55 @@
         return true;
     };
 
+    //  A buy without enough energy waits in line and happens by itself when the energy is there (no tapping again).
+    Game.prototype.enqueue = function (kind) {
+        var mine = this.units.filter(function (x) { return x.side === 'you'; }).length;
+        if (this.state !== 'play' || this.queue.length >= 3 || mine + this.queue.length >= CAP) { return; }
+        this.queue.push(kind);
+        this.log('queue', { kind: kind, n: this.queue.length });
+        this.sound.tone(440, 0.04, 'sine', 0.03);
+    };
+    Game.prototype.drainQueue = function () {
+        while (this.queue.length && this.energy.you >= UNITS[this.queue[0]].cost) {
+            if (!this.buy('you', this.queue[0])) { this.queue = []; break; }
+            this.queue.shift();
+        }
+    };
+
+    //  The coach: what a good player would whisper at this moment. One tip at a time, each with its own rest.
+    Game.prototype.coachTick = function (dt) {
+        var c = this.coach;
+        if (c.life > 0) { c.life -= dt; }
+        if (!c.on) { return; }
+        c.gap -= dt;
+        var self = this, mine = 0, kinds = { spark: 0, lancer: 0, bulwark: 0 }, botN = 0;
+        this.units.forEach(function (u) { if (u.side === 'you') { mine++; } else { botN++; kinds[u.kind]++; } });
+        var say = function (key, rest, vars) {
+            if (c.gap > 0 || (c.said[key] !== undefined && self.battle - c.said[key] < rest)) { return false; }
+            c.line = t('coach.' + key, vars || {}); c.life = 4.5; c.gap = 6; c.said[key] = self.battle;
+            self.log('coach', { tip: key });
+            return true;
+        };
+        if (c.pending) { var p = c.pending; c.pending = null; c.gap = Math.min(c.gap, 0); if (say(p, 12, { n: c.n })) { return; } }
+        if (this.energy.you >= 150 && mine < CAP && say('energy', 20, { e: Math.floor(this.energy.you) })) { return; }
+        //  A good army standing still while the bot holds the crystals: send it.
+        if (mine >= 5 && this.battle - (c.lastOrder || 0) > 15 && this.owned('bot') >= 3 && say('idle', 20, { m: mine })) { return; }
+        if (botN >= mine * 2 + 2 && say('outnumbered', 25, { b: botN, m: mine })) { return; }
+        var top = ORDER.slice().sort(function (a, b) { return kinds[b] - kinds[a]; })[0];
+        if (kinds[top] >= 3 && kinds[top] * 2 >= botN) {
+            var beater = ORDER.filter(function (k) { return UNITS[k].beats === top; })[0];
+            say('counter', 30, { k: t('u.' + top), b: t('u.' + beater) });
+        }
+    };
+    Game.prototype.drawCoach = function (ctx) {
+        var c = this.coach;
+        if (this.state !== 'play' || this.paused || !c || !c.line || c.life <= 0) { return; }
+        ctx.save(); ctx.globalAlpha = Math.min(1, c.life / 0.4);
+        if (window.NeonStage && window.NeonStage.text) { window.NeonStage.text.plate(ctx, c.line, W / 2, TOP + 62, 14, '#ffffff', 0.6); }
+        else { this.center(ctx, c.line, TOP + 62, 14, '#ffffff', true); }
+        ctx.restore();
+    };
+
     //  A new unit next to its core.
     Game.prototype.spawn = function (side, kind) {
         var u = UNITS[kind], core = this.cores[side];
@@ -213,6 +265,9 @@
         if (sel === 'all') { this.rally = { x: x, y: Math.max(y, (TOP + FIELD_B) / 2) }; }
         this.marker = { x: x, y: y, life: 0.6 };
         this.log('order', { sel: sel, x: Math.round(x), y: Math.round(y), n: n });
+        this.coach.lastOrder = this.battle;
+        if (n === 0) { this.coach.pending = 'empty'; }
+        else if (y < (TOP + FIELD_B) / 2 && n < 4 && this.battle > 5) { this.coach.pending = 'few'; this.coach.n = n; }
         this.sound.tone(520, 0.05, 'sine', 0.05);
     };
 
@@ -272,6 +327,8 @@
                 this.texts.push({ x: W / 2, y: (TOP + FIELD_B) / 2 - 40, text: t('sudden'), life: 2.4, max: 2.4, big: true, color: '#ffdc3c' });
                 this.sound.tone(200, 0.5, 'sawtooth', 0.07, 400);
             }
+            this.drainQueue();
+            this.coachTick(dt);
             this.botUpdate(dt);
             this.moveUnits(dt);
             this.fight(dt);
@@ -516,7 +573,7 @@
         if (y >= FIELD_B) {
             var hitBtn = this.barLayout().filter(function (b) { return x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h; })[0];
             if (!hitBtn) { return; }
-            if (hitBtn.kind === 'buy') { this.buy('you', hitBtn.unit); }
+            if (hitBtn.kind === 'buy') { if (!this.buy('you', hitBtn.unit)) { this.enqueue(hitBtn.unit); } }
             else { this.selected = hitBtn.unit; this.sound.tone(700, 0.03, 'sine', 0.04); }
             return;
         }
@@ -532,7 +589,7 @@
         }
         var buys = { 49: 'spark', 50: 'lancer', 51: 'bulwark' }, sels = { 81: 'all', 87: 'spark', 69: 'lancer', 82: 'bulwark' };
         if (this.state === 'title' && buys[code]) { this.setLevel(LEVEL_KEYS[code - 49]); return; }
-        if (this.state === 'play' && buys[code]) { this.buy('you', buys[code]); }
+        if (this.state === 'play' && buys[code]) { if (!this.buy('you', buys[code])) { this.enqueue(buys[code]); } }
         if (this.state === 'play' && sels[code]) { this.selected = sels[code]; }
     };
     Game.prototype.keyUp = function () {};
@@ -686,6 +743,7 @@
         ctx.globalAlpha = 1;
         this.drawHud(ctx);
         this.drawBar(ctx);
+        this.drawCoach(ctx);
         if (this.fx.flash > 0) { ctx.fillStyle = this.fx.flashColor; ctx.globalAlpha = Math.min(0.3, this.fx.flash); ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
         if (this.state === 'play' && this.battle < 6 && !this.paused) {
             this.center(ctx, t(this.touch ? 'launch.touch' : 'launch.desktop'), FIELD_B - 130, 13, '#e0e0f0');
@@ -727,6 +785,15 @@
                 var spec = UNITS[b.unit], can = self.energy.you >= spec.cost && self.state === 'play' && total < CAP;
                 ctx.fillStyle = can ? 'rgba(0,240,255,0.14)' : 'rgba(255,255,255,0.04)';
                 roundRect(ctx, b.x, b.y, b.w, b.h, 8); ctx.fill();
+                if (!can && self.state === 'play') {                     // how far the energy is from this unit
+                    var fr = Math.max(0, Math.min(1, self.energy.you / spec.cost));
+                    ctx.save(); roundRect(ctx, b.x, b.y, b.w, b.h, 8); ctx.clip();
+                    ctx.fillStyle = 'rgba(255,220,60,0.16)'; ctx.fillRect(b.x, b.y + b.h - 6, b.w * fr, 6); ctx.restore();
+                }
+                if (can && self.energy.you >= 150 && self.state === 'play') {   // energy piling up: the buttons call
+                    ctx.save(); ctx.shadowColor = '#00f0ff'; ctx.shadowBlur = 8 + 8 * Math.abs(Math.sin(self.time * 4));
+                    ctx.strokeStyle = '#00f0ff'; ctx.lineWidth = 2; roundRect(ctx, b.x, b.y, b.w, b.h, 8); ctx.stroke(); ctx.restore();
+                }
                 ctx.strokeStyle = can ? '#00f0ff' : 'rgba(255,255,255,0.2)'; ctx.lineWidth = 2; ctx.stroke();
                 ctx.fillStyle = can ? '#00f0ff' : 'rgba(255,255,255,0.35)';
                 unitShape(ctx, spec.shape, b.x + 18, b.y + b.h / 2, 7, true); ctx.fill();
@@ -734,6 +801,12 @@
                 ctx.fillText(t('u.' + b.unit), b.x + 32, b.y + 17);
                 ctx.font = '12px Arial, sans-serif'; ctx.fillStyle = can ? '#ffdc3c' : 'rgba(255,255,255,0.35)';
                 ctx.fillText('⚡' + spec.cost, b.x + 32, b.y + 34);
+                var waiting = self.queue ? self.queue.filter(function (k) { return k === b.unit; }).length : 0;
+                if (waiting) {                                             // queued buys of this unit
+                    ctx.fillStyle = '#ffdc3c'; ctx.beginPath(); ctx.arc(b.x + b.w - 12, b.y + 12, 9, 0, Math.PI * 2); ctx.fill();
+                    ctx.fillStyle = '#05060f'; ctx.font = 'bold 11px Arial, sans-serif'; ctx.textAlign = 'center';
+                    ctx.fillText('+' + waiting, b.x + b.w - 12, b.y + 12.5);
+                }
             } else {
                 var on = self.selected === b.unit;
                 ctx.fillStyle = on ? '#ff00c8' : 'rgba(255,255,255,0.05)';
