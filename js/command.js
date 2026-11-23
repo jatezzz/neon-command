@@ -33,9 +33,9 @@
     //  its first attack, how many units it adds to its push size, how many more units than yours it allows itself,
     //  and the score multiplier, so scores stay comparable across levels.
     var LEVELS = {
-        easy:   { income: 0.60, think: 1.4,  counter: 0.3, grace: 120, attackPlus: 4, lead: 3,  mult: 0.6 },
-        normal: { income: 0.85, think: 0.75, counter: 0.75, grace: 70, attackPlus: 2, lead: 6,  mult: 1.0 },
-        hard:   { income: 1.00, think: 0.5,  counter: 1.0, grace: 30,  attackPlus: 0, lead: 99, mult: 1.4 }
+        easy:   { income: 0.60, think: 1.4,  counter: 0.3, grace: 120, attackPlus: 4, lead: 3,  mult: 0.6, bank: 220 },
+        normal: { income: 0.85, think: 0.75, counter: 0.75, grace: 70, attackPlus: 2, lead: 6,  mult: 1.0, bank: 500 },
+        hard:   { income: 1.00, think: 0.5,  counter: 1.0, grace: 30,  attackPlus: 0, lead: 99, mult: 1.4, bank: 1e9 }
     };
     var LEVEL_KEYS = ['easy', 'normal', 'hard'];
     var CAPTURE_R = 28, CAPTURE_TIME = 2.5;
@@ -160,7 +160,7 @@
         this.reported = -1;
         this.goalPassed = false;
         this.nextId = 1;
-        this.flows = []; this.auto = false; this.dom = null; this.secondWind = false; this.wave = null; this.ePulse = 0;
+        this.flows = []; this.front = null; this.auto = false; this.dom = null; this.secondWind = false; this.wave = null; this.ePulse = 0;
         this.queue = [];                                  // buys waiting for energy (yours only), at most 3
         //  The coach: one short tip at a time, when it helps (Easy and Normal). JOHN-429, from recorded play.
         this.coach = { on: this.level !== 'hard', gap: 4, said: {}, line: null, life: 0, pending: null };
@@ -285,9 +285,28 @@
         var u = UNITS[kind], core = this.cores[side];
         var dir = side === 'you' ? -1 : 1;
         var unit = { id: this.nextId++, side: side, kind: kind, x: core.x + (this.units.length % 5 - 2) * 9, y: core.y + dir * (CORE_R + 10),
-                     hp: u.hp, cool: 0, target: null, goal: side === 'you' ? { x: this.rally.x, y: this.rally.y } : null, flash: 0 };
+                     hp: u.hp, cool: 0, target: null, goal: side === 'you' ? this.reinforce() : null, flash: 0 };
         this.units.push(unit);
         return unit;
+    };
+
+    //  Where a new unit of yours goes: to the rally point only if a group of yours is already there to join;
+    //  otherwise it waits in front of your core, so reinforcements never walk alone into the bot's army.
+    Game.prototype.reinforce = function () {
+        var home = { x: W / 2, y: FIELD_B - 90 }, r = this.rally, n = 0;
+        this.units.forEach(function (u) { if (u.side === 'you' && dist2(u, r) < 90 * 90) { n++; } });
+        //  When the map is yours or its core is broken, new units go straight to where your army was sent.
+        if (this.front && (this.dom === 'you' || this.cores.bot.breached)) { return { x: this.front.x, y: this.front.y }; }
+        return n >= 3 ? { x: r.x, y: r.y } : home;
+    };
+
+    //  The unit that beats the bot's most common one (when it has at least 2), else null.
+    Game.prototype.recommend = function () {
+        var kinds = { spark: 0, lancer: 0, bulwark: 0 }, botN = 0;
+        this.units.forEach(function (u) { if (u.side === 'bot') { kinds[u.kind]++; botN++; } });
+        if (botN < 2) { return null; }
+        var top = ORDER.slice().sort(function (a, b) { return kinds[b] - kinds[a]; })[0];
+        return ORDER.filter(function (k) { return UNITS[k].beats === top; })[0];
     };
 
     //  Send the selected group (or everyone) to a point. They fight what they meet on the way.
@@ -297,7 +316,7 @@
         this.units.forEach(function (u) {
             if (u.side === 'you' && (sel === 'all' || u.kind === sel)) { u.goal = { x: x, y: y }; n++; }
         });
-        if (sel === 'all') { this.rally = { x: x, y: Math.max(y, (TOP + FIELD_B) / 2) }; }
+        if (sel === 'all') { this.rally = { x: x, y: Math.max(y, (TOP + FIELD_B) / 2) }; this.front = { x: x, y: y }; }
         this.marker = { x: x, y: y, life: 0.6 };
         this.log('order', { sel: sel, x: Math.round(x), y: Math.round(y), n: n, via: via || 'tap' });
         this.coach.lastOrder = this.battle;
@@ -357,6 +376,8 @@
             var oy = this.owned('you'), ob = this.owned('bot');
             this.energy.you += (INCOME + CRYSTAL_INCOME * oy + CATCH_UP * Math.max(0, ob - oy)) * dt;
             this.energy.bot += (INCOME + CRYSTAL_INCOME * ob + CATCH_UP * Math.max(0, oy - ob)) * dt * LEVELS[this.level].income;
+            //  On the easier levels the bot cannot bank a fortune while it waits: otherwise it matches any army you gather at once.
+            this.energy.bot = Math.min(this.energy.bot, LEVELS[this.level].bank);
             if (this.battle >= SUDDEN && this.battle - dt < SUDDEN) {
                 this.log('sudden');
                 this.texts.push({ x: W / 2, y: (TOP + FIELD_B) / 2 - 40, text: t('sudden'), life: 2.4, max: 2.4, big: true, color: '#ffdc3c' });
@@ -747,13 +768,7 @@
     };
     Game.prototype.autoTick = function () {
         if (!this.auto) { return; }
-        var kinds = { spark: 0, lancer: 0, bulwark: 0 }, botN = 0;
-        this.units.forEach(function (u) { if (u.side === 'bot') { kinds[u.kind]++; botN++; } });
-        var want = 'lancer';
-        if (botN >= 2) {
-            var top = ORDER.slice().sort(function (a, b) { return kinds[b] - kinds[a]; })[0];
-            want = ORDER.filter(function (k) { return UNITS[k].beats === top; })[0];
-        }
+        var want = this.recommend() || 'lancer';
         if (this.energy.you >= UNITS[want].cost) { this.buy('you', want); }
     };
     Game.prototype.keyUp = function () {};
@@ -963,6 +978,7 @@
         ctx.strokeStyle = '#00f0ff'; ctx.globalAlpha = 0.5; ctx.beginPath(); ctx.moveTo(0, FIELD_B + 0.5); ctx.lineTo(W, FIELD_B + 0.5); ctx.stroke(); ctx.globalAlpha = 1;
         var self = this, mine = { spark: 0, lancer: 0, bulwark: 0 }, total = 0;
         this.units.forEach(function (u) { if (u.side === 'you') { mine[u.kind]++; total++; } });
+        var rec = this.state === 'play' ? this.recommend() : null;
         this.barLayout().forEach(function (b) {
             if (b.kind === 'buy') {
                 var spec = UNITS[b.unit], can = self.energy.you >= spec.cost && self.state === 'play' && total < CAP;
@@ -984,6 +1000,12 @@
                 ctx.fillText(t('u.' + b.unit), b.x + 32, b.y + 17);
                 ctx.font = '12px Arial, sans-serif'; ctx.fillStyle = can ? '#ffdc3c' : 'rgba(255,255,255,0.35)';
                 ctx.fillText('⚡' + spec.cost, b.x + 32, b.y + 34);
+                if (b.unit === rec) {                                      // the one that beats what the bot has most of
+                    ctx.save(); ctx.strokeStyle = '#00ff9c'; ctx.lineWidth = 2; ctx.shadowColor = '#00ff9c'; ctx.shadowBlur = 6 + 6 * Math.abs(Math.sin(self.time * 3));
+                    roundRect(ctx, b.x + 3, b.y + 3, b.w - 6, b.h - 6, 6); ctx.stroke(); ctx.restore();
+                    ctx.fillStyle = '#00ff9c'; ctx.font = 'bold 15px Arial, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                    ctx.fillText('✓', b.x + b.w - 13, b.y + b.h - 13);
+                }
                 var waiting = self.queue ? self.queue.filter(function (k) { return k === b.unit; }).length : 0;
                 if (waiting) {                                             // queued buys of this unit
                     ctx.fillStyle = '#ffdc3c'; ctx.beginPath(); ctx.arc(b.x + b.w - 12, b.y + 12, 9, 0, Math.PI * 2); ctx.fill();
