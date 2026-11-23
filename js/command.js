@@ -901,12 +901,7 @@
                         var px = -by * k * 3.5, py = bx * k * 3.5, l0 = R * 1.1, l1 = R * (2.2 + 0.6 * Math.abs(Math.sin((u.step || 0) * 2 + k)));
                         ctx.beginPath(); ctx.moveTo(x + bx * l0 + px, y + by * l0 + py); ctx.lineTo(x + bx * l1 + px, y + by * l1 + py); ctx.stroke();
                     }
-                } else if (u.kind === 'lancer') {
-                    var fl = R * (1.5 + 0.5 * Math.abs(Math.sin(tm * 30 + u.id)));
-                    ctx.globalAlpha = 0.75; ctx.fillStyle = '#ffdc3c';
-                    ctx.beginPath(); ctx.moveTo(x + bx * R * 0.9 - by * 2.5, y + by * R * 0.9 + bx * 2.5); ctx.lineTo(x + bx * fl, y + by * fl);
-                    ctx.lineTo(x + bx * R * 0.9 + by * 2.5, y + by * R * 0.9 - bx * 2.5); ctx.closePath(); ctx.fill();
-                } else {
+                } else if (u.kind === 'bulwark') {
                     ctx.globalAlpha = 0.3;
                     for (var d2 = 0; d2 < 2; d2++) {
                         var ph = ((u.step || 0) * 0.5 + d2 * 0.5) % 1, dd = R * (1.1 + ph * 1.2);
@@ -917,48 +912,48 @@
             }
         }
         ctx.save(); ctx.translate(x, y); ctx.rotate(face + Math.PI / 2);       // local frame: forward is up (-y)
-        ctx.globalAlpha = alpha; ctx.shadowColor = side; ctx.shadowBlur = icon ? 6 : 10; ctx.fillStyle = body; ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1;
-        if (u.kind === 'spark') {
-            //  A dart that flaps as it runs and lunges when it strikes.
-            var lunge = atk ? -4 * Math.sin(atk * Math.PI) : 0, wing = 1 + 0.12 * stride;
-            ctx.translate(0, lunge);
-            ctx.beginPath(); ctx.moveTo(0, -R * 1.35); ctx.lineTo(R * 0.95 * wing, R * 0.95); ctx.lineTo(0, R * 0.4); ctx.lineTo(-R * 0.95 * wing, R * 0.95); ctx.closePath();
-            ctx.fill(); ctx.shadowBlur = 0; ctx.stroke();
-            ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.moveTo(0, -R * 0.7); ctx.lineTo(R * 0.3, R * 0.25); ctx.lineTo(-R * 0.3, R * 0.25); ctx.closePath(); ctx.fill();
-            //  Static crackling around it, stronger when it attacks.
-            if (!icon && (atk || Math.sin(tm * 13 + u.id * 3) > 0.7)) {
-                ctx.strokeStyle = '#ffffff'; ctx.globalAlpha = alpha * (atk ? 1 : 0.6); ctx.lineWidth = 1;
-                var a0 = tm * 9 + u.id; ctx.beginPath();
-                ctx.moveTo(Math.cos(a0) * R * 1.3, Math.sin(a0) * R * 1.3); ctx.lineTo(Math.cos(a0 + 0.4) * R * 1.7, Math.sin(a0 + 0.4) * R * 1.7);
-                ctx.lineTo(Math.cos(a0 + 0.8) * R * 1.25, Math.sin(a0 + 0.8) * R * 1.25); ctx.stroke();
+        ctx.globalAlpha = alpha;
+        //  The vector art (js/unit-art.js, traced from the approved references), part by part, with its own motions:
+        //  a Spark lunges and flaps, a Lancer recoils while its tip charges, a Bulwark's shield slams and its tracks roll.
+        var ART = window.NeonUnitArt, sd = u.side === 'bot' ? 'bot' : 'you', s = R * ART.SCALE[u.kind];
+        var charge = icon ? 0.6 : Math.max(0, Math.min(1, 1 - (u.cool || 0) / spec.every)), slam = 0;
+        if (u.kind === 'spark') { ctx.translate(0, atk ? -4 * Math.sin(atk * Math.PI) : 0); ctx.scale(1 + 0.1 * stride, 1); }
+        else if (u.kind === 'lancer') { ctx.translate(0, atk ? 3.5 * atk : 0); }
+        else { slam = atk ? -5 * Math.sin(atk * Math.PI) / s : 0; }
+        ctx.save(); ctx.scale(s, s);
+        ART.ART[sd][u.kind].forEach(function (p) {
+            var path = p.p2 || (p.p2 = new Path2D(p.d));
+            ctx.save();
+            ctx.shadowBlur = 0;
+            if (p.anim === 'flame') {
+                var fl = moving ? 1 + 0.35 * Math.abs(Math.sin(tm * 30 + (u.id || 0))) : (icon ? 0.55 : 0.35);
+                ctx.translate(p.origin[0], p.origin[1]); ctx.scale(1, fl); ctx.translate(-p.origin[0], -p.origin[1]);
+                ctx.globalAlpha = alpha * 0.85; ctx.shadowColor = side; ctx.shadowBlur = 8;
+            } else if (p.anim === 'glow') { ctx.shadowColor = side; ctx.shadowBlur = icon ? 6 : 10; }
+            else if (p.anim === 'tip') {
+                var k = 1 + 0.45 * charge; ctx.translate(0, -90); ctx.scale(k, k); ctx.translate(0, 90);
+                ctx.shadowColor = '#ffdc3c'; ctx.shadowBlur = 4 + 12 * charge;
+            } else if (p.anim === 'shield') { ctx.translate(0, slam); ctx.globalAlpha = alpha * 0.9; ctx.shadowColor = side; ctx.shadowBlur = 8; }
+            else if (p.anim === 'core') { ctx.shadowColor = '#ffffff'; ctx.shadowBlur = 6; }
+            ctx.fillStyle = u.flash > 0 && p.anim !== 'flame' ? '#ffffff' : ART.color(sd, p.fill);
+            ctx.fill(path);
+            if (p.stroke) { ctx.shadowBlur = 0; ctx.strokeStyle = ART.color(sd, p.stroke); ctx.lineWidth = 1.2 / s; ctx.lineJoin = 'round'; ctx.stroke(path); }
+            if (p.anim === 'treadL' || p.anim === 'treadR') {                 // the track segments roll with its stride
+                ctx.clip(path); ctx.strokeStyle = ART.color(sd, 'mid'); ctx.lineWidth = 2.4; ctx.globalAlpha = alpha * 0.85;
+                var x0 = p.anim === 'treadL' ? -48 : 28, off = ((u.step || 0) * 6) % 7;
+                ctx.beginPath();
+                for (var ty = -36 + off; ty < 38; ty += 7) { ctx.moveTo(x0, ty); ctx.lineTo(x0 + 20, ty); }
+                ctx.stroke();
             }
-        } else if (u.kind === 'lancer') {
-            //  A diamond carrying a long lance: the tip charges up between shots, the body recoils when it fires.
-            var recoil = atk ? 3.5 * atk : 0, charge = icon ? 0.6 : Math.max(0, Math.min(1, 1 - (u.cool || 0) / spec.every));
-            ctx.translate(0, recoil);
-            ctx.beginPath(); ctx.moveTo(0, -R * 1.05); ctx.lineTo(R * 0.75, 0); ctx.lineTo(0, R * 1.05); ctx.lineTo(-R * 0.75, 0); ctx.closePath();
-            ctx.fill(); ctx.shadowBlur = 0; ctx.stroke();
-            ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.lineCap = 'round';
-            ctx.beginPath(); ctx.moveTo(0, -R * 0.4); ctx.lineTo(0, -R * 2.0); ctx.stroke();
-            ctx.fillStyle = '#ffdc3c'; ctx.shadowColor = '#ffdc3c'; ctx.shadowBlur = 4 + 10 * charge;
-            ctx.beginPath(); ctx.arc(0, -R * 2.0, 1 + 2.2 * charge, 0, Math.PI * 2); ctx.fill();
-            ctx.shadowBlur = 0; ctx.fillStyle = 'rgba(5,6,15,0.85)'; ctx.beginPath(); ctx.arc(0, 0, R * 0.28, 0, Math.PI * 2); ctx.fill();
-        } else {
-            //  A heavy block on treads, its shield in front; the shield slams forward when it hits.
-            var slam = atk ? -5 * Math.sin(atk * Math.PI) : 0, s2 = R * 0.95;
-            ctx.fillStyle = 'rgba(255,255,255,0.25)';
-            for (var tr = 0; tr < 2; tr++) {
-                var tx0 = tr ? s2 * 0.95 : -s2 * 1.3;
-                ctx.fillRect(tx0, -s2 * 0.9, s2 * 0.35, s2 * 1.8);
-                ctx.fillStyle = 'rgba(255,255,255,0.55)';
-                var off = ((u.step || 0) * 3) % 4;
-                for (var st = -2; st <= 2; st++) { ctx.fillRect(tx0, st * 4 + off - 2, s2 * 0.35, 1); }
-                ctx.fillStyle = 'rgba(255,255,255,0.25)';
-            }
-            ctx.fillStyle = body; roundRect(ctx, -s2, -s2 * 0.85, s2 * 2, s2 * 1.8, 2.5); ctx.fill(); ctx.shadowBlur = 0; ctx.stroke();
-            ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3; ctx.shadowColor = side; ctx.shadowBlur = 8; ctx.lineCap = 'round';
-            ctx.beginPath(); ctx.arc(0, -s2 * 0.1 + slam, s2 * 1.45, -Math.PI * 0.82, -Math.PI * 0.18); ctx.stroke();
-            ctx.shadowBlur = 0; ctx.fillStyle = 'rgba(5,6,15,0.8)'; ctx.fillRect(-s2 * 0.45, -s2 * 0.35, s2 * 0.9, s2 * 0.7);
+            ctx.restore();
+        });
+        ctx.restore();
+        //  A Spark's static crackling, stronger when it attacks.
+        if (u.kind === 'spark' && !icon && (atk || Math.sin(tm * 13 + u.id * 3) > 0.7)) {
+            ctx.strokeStyle = '#ffffff'; ctx.globalAlpha = alpha * (atk ? 1 : 0.6); ctx.lineWidth = 1; ctx.shadowBlur = 0;
+            var a0 = tm * 9 + u.id; ctx.beginPath();
+            ctx.moveTo(Math.cos(a0) * R * 1.3, Math.sin(a0) * R * 1.3); ctx.lineTo(Math.cos(a0 + 0.4) * R * 1.7, Math.sin(a0 + 0.4) * R * 1.7);
+            ctx.lineTo(Math.cos(a0 + 0.8) * R * 1.25, Math.sin(a0 + 0.8) * R * 1.25); ctx.stroke();
         }
         //  Damage: cracks below 60 %.
         if (!icon && hpf < 0.6) {

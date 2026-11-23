@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-58 -62 116 128" width="464" height="512">
+  <title>Neon Command · spark (bot)</title>
+  <defs><filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2.2" result="b"/><feFlood flood-color="#ff00c8" flood-opacity="0.9"/><feComposite in2="b" operator="in" result="g"/><feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+  <path id="flame" d="M-5,28 L0,52 L5,28 Z" fill="#ffc4f1" filter="url(#glow)" data-anim="flame"/>
+  <path id="wings" d="M0,-48 L10,-14 L30,-4 L48,-16 L40,14 L22,18 L10,34 L0,28 L-10,34 L-22,18 L-40,14 L-48,-16 L-30,-4 L-10,-14 Z" fill="#d40aa9" stroke="#ffe6f8" stroke-width="1.6" stroke-linejoin="round" filter="url(#glow)" data-anim="glow"/>
+  <path id="panelL" d="M-10,-14 L-30,-4 L-40,14 L-22,18 L-8,8 Z" fill="#ff00c8"/>
+  <path id="panelR" d="M10,-14 L30,-4 L40,14 L22,18 L8,8 Z" fill="#ff00c8"/>
+  <path id="edgeL" d="M-30,-4 L-48,-16 L-44,-6 L-32,0 Z" fill="#ffc4f1"/>
+  <path id="edgeR" d="M30,-4 L48,-16 L44,-6 L32,0 Z" fill="#ffc4f1"/>
+  <path id="finL" d="M-14,20 L-19,38 L-9,27 Z" fill="#ffc4f1"/>
+  <path id="finR" d="M14,20 L19,38 L9,27 Z" fill="#ffc4f1"/>
+  <path id="body" d="M0,-46 L9,-8 L5,26 L0,30 L-5,26 L-9,-8 Z" fill="#d40aa9"/>
+  <path id="core" d="M0,-24 L5,-4 L0,14 L-5,-4 Z" fill="#ffffff" filter="url(#glow)" data-anim="core"/>
+</svg>

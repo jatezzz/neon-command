@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-58 -80 116 140" width="464" height="560">
+  <title>Neon Command · bulwark (you)</title>
+  <defs><filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2.2" result="b"/><feFlood flood-color="#00f0ff" flood-opacity="0.9"/><feComposite in2="b" operator="in" result="g"/><feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+  <path id="treadL" d="M-47,-34 L-28,-34 L-28,36 L-47,36 Z" fill="#062640" stroke="#16b8e8" stroke-width="1.6" stroke-linejoin="round" data-anim="treadL"/>
+  <path d="M-45.5,-30 L-29.5,-30 M-45.5,-24 L-29.5,-24 M-45.5,-18 L-29.5,-18 M-45.5,-12 L-29.5,-12 M-45.5,-6 L-29.5,-6 M-45.5,0 L-29.5,0 M-45.5,6 L-29.5,6 M-45.5,12 L-29.5,12 M-45.5,18 L-29.5,18 M-45.5,24 L-29.5,24 M-45.5,30 L-29.5,30" stroke="#16b8e8" stroke-width="2.4" stroke-opacity="0.85" fill="none" data-anim="treadL-segments"/>
+  <path id="treadR" d="M28,-34 L47,-34 L47,36 L28,36 Z" fill="#062640" stroke="#16b8e8" stroke-width="1.6" stroke-linejoin="round" data-anim="treadR"/>
+  <path d="M29.5,-30 L45.5,-30 M29.5,-24 L45.5,-24 M29.5,-18 L45.5,-18 M29.5,-12 L45.5,-12 M29.5,-6 L45.5,-6 M29.5,0 L45.5,0 M29.5,6 L45.5,6 M29.5,12 L45.5,12 M29.5,18 L45.5,18 M29.5,24 L45.5,24 M29.5,30 L45.5,30" stroke="#16b8e8" stroke-width="2.4" stroke-opacity="0.85" fill="none" data-anim="treadR-segments"/>
+  <path id="hull" d="M-24,-32 L24,-32 L28,-22 L28,28 L20,36 L-20,36 L-28,28 L-28,-22 Z" fill="#0b5f92" stroke="#e8feff" stroke-width="1.6" stroke-linejoin="round" filter="url(#glow)" data-anim="glow"/>
+  <path id="nose" d="M-9,-42 L9,-42 L11,-30 L-11,-30 Z" fill="#00f0ff"/>
+  <path id="plate" d="M-16,-26 L16,-26 L20,-16 L20,14 L12,24 L-12,24 L-20,14 L-20,-16 Z" fill="#00f0ff"/>
+  <path id="turret" d="M-9,-20 L9,-20 L11,-6 L7,8 L-7,8 L-11,-6 Z" fill="#16b8e8"/>
+  <path id="slits" d="M-15,-10 L-13,-10 L-13,6 L-15,6 Z M13,-10 L15,-10 L15,6 L13,6 Z" fill="#c8fdff"/>
+  <path id="core" d="M-2.5,-15 L2.5,-15 L2.5,2 L-2.5,2 Z" fill="#ffffff" filter="url(#glow)" data-anim="core"/>
+  <path id="shield" d="M-44,-34 Q0,-64 44,-34 L40,-26 Q0,-52 -40,-26 Z" fill="#c8fdff" fill-opacity="0.85" stroke="#ffffff" stroke-width="1.6" stroke-linejoin="round" filter="url(#glow)" data-anim="shield"/>
+</svg>

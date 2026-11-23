@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-40 -110 80 184" width="320" height="736">
+  <title>Neon Command · lancer (you)</title>
+  <defs><filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2.2" result="b"/><feFlood flood-color="#00f0ff" flood-opacity="0.9"/><feComposite in2="b" operator="in" result="g"/><feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+  <path id="flame" d="M-4,42 L0,64 L4,42 Z" fill="#c8fdff" filter="url(#glow)" data-anim="flame"/>
+  <path id="shaft" d="M-2.2,-36 L2.2,-36 L2.2,-84 L-2.2,-84 Z" fill="#c8fdff" stroke="#00f0ff" stroke-width="1.6" stroke-linejoin="round"/>
+  <path id="collar" d="M-3.5,-60 L3.5,-60 L3.5,-55 L-3.5,-55 Z" fill="#ffdc3c"/>
+  <path id="tip" d="M0,-100 L4.5,-86 L0,-81 L-4.5,-86 Z" fill="#ffdc3c" filter="url(#glow)" data-anim="tip"/>
+  <path id="blades" d="M0,-46 L22,-8 L17,2 L10,34 L0,42 L-10,34 L-17,2 L-22,-8 Z" fill="#0b5f92" stroke="#e8feff" stroke-width="1.6" stroke-linejoin="round" filter="url(#glow)" data-anim="glow"/>
+  <path id="hull" d="M0,-42 L13,-8 L8,32 L0,38 L-8,32 L-13,-8 Z" fill="#00f0ff"/>
+  <path id="facet" d="M0,-36 L7,-13 L0,6 L-7,-13 Z" fill="#c8fdff"/>
+  <path id="core" d="M0,-6 L3,4 L0,16 L-3,4 Z" fill="#ffffff" filter="url(#glow)" data-anim="core"/>
+  <path id="nozzle" d="M-5,37 L5,37 L4,43 L-4,43 Z" fill="#062640"/>
+</svg>

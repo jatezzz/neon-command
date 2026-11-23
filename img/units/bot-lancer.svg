@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-40 -110 80 184" width="320" height="736">
+  <title>Neon Command · lancer (bot)</title>
+  <defs><filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2.2" result="b"/><feFlood flood-color="#ff00c8" flood-opacity="0.9"/><feComposite in2="b" operator="in" result="g"/><feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+  <path id="flame" d="M-4,40 L0,62 L4,40 Z" fill="#ffc4f1" filter="url(#glow)" data-anim="flame"/>
+  <path id="shaft" d="M-2.8,-38 L2.8,-38 L2.8,-84 L-2.8,-84 Z" fill="#6a1d93" stroke="#ff00c8" stroke-width="1.6" stroke-linejoin="round"/>
+  <path id="collar" d="M-4,-64 L4,-64 L4,-60 L-4,-60 Z M-4,-54 L4,-54 L4,-50 L-4,-50 Z" fill="#ffdc3c"/>
+  <path id="tip" d="M0,-102 L5,-88 L0,-82 L-5,-88 Z" fill="#ffdc3c" filter="url(#glow)" data-anim="tip"/>
+  <path id="blades" d="M0,-46 L28,-10 L20,0 L12,28 L20,46 L5,36 L0,44 L-5,36 L-20,46 L-12,28 L-20,0 L-28,-10 Z" fill="#d40aa9" stroke="#ffe6f8" stroke-width="1.6" stroke-linejoin="round" filter="url(#glow)" data-anim="glow"/>
+  <path id="hull" d="M0,-42 L15,-10 L9,28 L0,36 L-9,28 L-15,-10 Z" fill="#ff00c8"/>
+  <path id="facet" d="M0,-34 L8,-12 L0,8 L-8,-12 Z" fill="#ffc4f1"/>
+  <path id="core" d="M0,-4 L3,4 L0,16 L-3,4 Z" fill="#ffffff" filter="url(#glow)" data-anim="core"/>
+</svg>
