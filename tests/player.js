@@ -2,7 +2,8 @@
     attacks the core once its army is big enough. Hooks into game.update (one decision every half second). */
 (function () {
     function install(game, opts) {
-        var o = Object.assign({ attackAt: 10, think: 0.5, counter: true, level: null }, opts || {});
+        //  lazy: buys a mix and never gives an order (how a new player on a phone often plays).
+        var o = Object.assign({ attackAt: 10, think: 0.5, counter: true, level: null, lazy: false }, opts || {});
         var orig = game.update, wait = 0, U = window.NeonCommand.UNITS;
         game.update = function (dt) {
             if (this.state === 'title') { if (o.level) { this.setLevel(o.level); } this.tap(200, 300); }
@@ -14,6 +15,7 @@
                 var top = Object.keys(bots).sort(function (a, b) { return bots[b] - bots[a]; })[0];
                 var want = o.counter && bots[top] ? Object.keys(U).filter(function (k) { return U[k].beats === top; })[0] : ['spark', 'lancer', 'bulwark'][mine.length % 3];
                 this.buy('you', want);
+                if (o.lazy) { orig.call(this, dt); return; }
                 this.selected = 'all';
                 var free = this.crystals.filter(function (c) { return c.owner !== 'you'; }).sort(function (a, b) { return b.y - a.y; });
                 if (mine.length >= o.attackAt || !free.length) { this.order(this.cores.bot.x, this.cores.bot.y); }

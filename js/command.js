@@ -31,7 +31,7 @@
     //  its first attack, how many units it adds to its push size, how many more units than yours it allows itself,
     //  and the score multiplier, so scores stay comparable across levels.
     var LEVELS = {
-        easy:   { income: 0.70, think: 1.1,  counter: 0.4, grace: 120, attackPlus: 4, lead: 3,  mult: 0.6 },
+        easy:   { income: 0.60, think: 1.4,  counter: 0.3, grace: 120, attackPlus: 4, lead: 3,  mult: 0.6 },
         normal: { income: 0.85, think: 0.75, counter: 0.75, grace: 70, attackPlus: 2, lead: 6,  mult: 1.0 },
         hard:   { income: 1.00, think: 0.5,  counter: 1.0, grace: 30,  attackPlus: 0, lead: 99, mult: 1.4 }
     };
@@ -161,6 +161,8 @@
         this.queue = [];                                  // buys waiting for energy (yours only), at most 3
         //  The coach: one short tip at a time, when it helps (Easy and Normal). JOHN-429, from recorded play.
         this.coach = { on: this.level !== 'hard', gap: 4, said: {}, line: null, life: 0, pending: null };
+        //  Assisted play on Easy: a group of 4+ idle units heads by itself to the nearest crystal that is not yours.
+        this.assist = { on: this.level === 'easy', wait: 1 };
         this.marker = null;
         void mid;
     };
@@ -225,6 +227,7 @@
             self.log('coach', { tip: key });
             return true;
         };
+        if (this.assist && this.assist.on && this.battle > 2 && say('assist', 9999)) { return; }
         if (c.pending) { var p = c.pending; c.pending = null; c.gap = Math.min(c.gap, 0); if (say(p, 12, { n: c.n })) { return; } }
         if (this.energy.you >= 150 && mine < CAP && say('energy', 20, { e: Math.floor(this.energy.you) })) { return; }
         //  A good army standing still while the bot holds the crystals: send it.
@@ -236,6 +239,31 @@
             say('counter', 30, { k: t('u.' + top), b: t('u.' + beater) });
         }
     };
+    //  Easy plays along: when the player has not steered for 8 s, idle units (4 or more) go together to the nearest
+    //  crystal that is not theirs, then on to the next one; with 10 or more and every crystal held, to the bot's core.
+    Game.prototype.assistTick = function (dt) {
+        var a = this.assist;
+        if (!a || !a.on) { return; }
+        a.wait -= dt;
+        if (a.wait > 0) { return; }
+        a.wait = 1;
+        if (this.battle - (this.coach.lastOrder === undefined ? -99 : this.coach.lastOrder) < 8) { return; }
+        var idle = this.units.filter(function (u) {
+            return u.side === 'you' && !u.target && (!u.goal || Math.abs(u.goal.x - u.x) + Math.abs(u.goal.y - u.y) < 60);
+        });
+        var botArmy = this.units.filter(function (u) { return u.side === 'bot'; }).length;
+        //  Only a group that can hold its own goes: at least 4, and about the bot's size (or 12).
+        if (idle.length < Math.min(12, Math.max(4, Math.ceil(botArmy * 0.8)))) { return; }
+        var home = this.cores.you;                         // secure your side first: the crystal nearest your core
+        var free = this.crystals.filter(function (c) { return c.owner !== 'you'; })
+            .sort(function (p, q) { return (Math.abs(p.x - home.x) + Math.abs(p.y - home.y)) - (Math.abs(q.x - home.x) + Math.abs(q.y - home.y)); });
+        var goal = free.length ? free[0] : (idle.length >= 10 ? this.cores.bot : null);
+        if (goal && idle.every(function (u) { return u.goal && Math.abs(u.goal.x - goal.x) < 14 && Math.abs(u.goal.y - goal.y) < 14; })) { return; }
+        if (!goal) { return; }
+        idle.forEach(function (u, i) { u.goal = { x: goal.x + Math.cos(i * 2.4) * 10, y: goal.y + Math.sin(i * 2.4) * 10 }; });
+        this.log('assist', { n: idle.length, x: Math.round(goal.x), y: Math.round(goal.y) });
+    };
+
     Game.prototype.drawCoach = function (ctx) {
         var c = this.coach;
         if (this.state !== 'play' || this.paused || !c || !c.line || c.life <= 0) { return; }
@@ -329,6 +357,7 @@
             }
             this.drainQueue();
             this.coachTick(dt);
+            this.assistTick(dt);
             this.botUpdate(dt);
             this.moveUnits(dt);
             this.fight(dt);
