@@ -23,6 +23,7 @@
     var ORDER = ['spark', 'lancer', 'bulwark'];
     var CORE_HP = 3500, CORE_R = 22;
     var CORE_ARMOR = 0.5;                                 // units do half damage to a core: a siege takes a while
+    var BREACH = 0.3, BREACH_MULT = 1.5;                  // below 30 % a core breaks open: no armour, no turret, it falls fast
     var START_ENERGY = 140, INCOME = 6, CRYSTAL_INCOME = 3;
     var CATCH_UP = 2;
     var SUDDEN = 480, SUDDEN2 = 600;                     // after 8 minutes cores lose their armour, after 10 they take double                                     // energy per second for every crystal the other side holds more
@@ -229,6 +230,8 @@
         };
         if (this.assist && this.assist.on && this.battle > 2 && say('assist', 9999)) { return; }
         if (c.pending) { var p = c.pending; c.pending = null; c.gap = Math.min(c.gap, 0); if (say(p, 12, { n: c.n })) { return; } }
+        //  The bot's core is broken: spend everything on the finish instead of watching.
+        if (this.cores.bot.breached && this.energy.you >= 80 && mine < CAP && say('finish', 15, { e: Math.floor(this.energy.you) })) { return; }
         if (this.energy.you >= 150 && mine < CAP && say('energy', 20, { e: Math.floor(this.energy.you) })) { return; }
         //  Winning the map but not the battle: the next step is the bot's core.
         if (this.owned('you') >= 4 && mine >= 8 && this.cores.bot.hp >= CORE_HP * 0.98 && say('push', 25, { m: mine })) { return; }
@@ -446,7 +449,7 @@
         ['you', 'bot'].forEach(function (side) {
             var c = self.cores[side];
             c.cool -= dt;
-            if (c.cool > 0) { return; }
+            if (c.cool > 0 || c.breached) { return; }
             var e = self.enemyNear({ x: c.x, y: c.y, side: side }, 100);
             if (e && e.kind) { c.cool = 0.7; self.shots.push({ x: c.x, y: c.y, target: e, dmg: 16, side: side, speed: 320 }); }
         });
@@ -462,14 +465,30 @@
     };
 
     Game.prototype.hit = function (e, dmg, side) {
-        if (!e.kind) { dmg *= this.battle >= SUDDEN2 ? 2 : (this.battle >= SUDDEN ? 1 : CORE_ARMOR); }
+        if (!e.kind) {
+            var m = this.battle >= SUDDEN2 ? 2 : (this.battle >= SUDDEN ? 1 : CORE_ARMOR);
+            dmg *= e.breached ? Math.max(m, BREACH_MULT) : m;
+        }
         e.hp -= dmg;
+        if (!e.kind && !e.breached && e.hp > 0 && e.hp <= CORE_HP * BREACH) { this.breach(e); }
         if (e.kind) { e.flash = 0.08; }
         else {
             if (side === 'you' && this.state === 'play') { this.stats.damage += dmg; this.addScore(Math.round(dmg / 8)); }
             this.impact(e.side === 'you' ? 2 : 1, 0.08);
             this.sound.tone(e.side === 'you' ? 120 : 180, 0.08, 'square', 0.05, null, 'core');
         }
+    };
+
+    //  A core below 30 %: its armour and its turret are gone, so the end comes in seconds instead of a slow grind.
+    Game.prototype.breach = function (c) {
+        c.breached = true;
+        this.log('breach', { side: c.side });
+        var mine = c.side === 'you';
+        this.texts.push({ x: W / 2, y: (TOP + FIELD_B) / 2 - 40, text: t(mine ? 'breach.you' : 'breach.bot'), life: 2.4, max: 2.4, big: true,
+                          color: mine ? '#ff5a6a' : '#ffdc3c' });
+        this.burst(c.x, c.y, SIDE[c.side].color, 40);
+        this.impact(mine ? 5 : 4, 0.35, mine ? 'rgba(255,60,80,0.25)' : 'rgba(255,220,60,0.2)', mine ? 60 : 30);
+        this.sound.tone(mine ? 140 : 320, 0.45, 'sawtooth', 0.07, mine ? 70 : 640);
     };
 
     Game.prototype.moveShots = function (dt) {
@@ -729,9 +748,21 @@
             hexagon(ctx, c.x, c.y, CORE_R); ctx.fill(); ctx.stroke(); ctx.restore();
             ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1; hexagon(ctx, c.x, c.y, CORE_R * 0.72); ctx.stroke();
             ctx.fillStyle = col; hexagon(ctx, c.x, c.y, CORE_R * 0.45 * (0.6 + 0.4 * Math.max(0, c.hp) / CORE_HP)); ctx.fill();
+            if (c.breached) {
+                //  Broken open: cracks through the hexagon and a flickering warning ring.
+                var fl = 0.55 + 0.45 * Math.abs(Math.sin(self.time * 9));
+                ctx.save(); ctx.globalAlpha = fl; ctx.strokeStyle = '#fff6d0'; ctx.lineWidth = 1.6; ctx.shadowColor = '#ffdc3c'; ctx.shadowBlur = 10;
+                ctx.beginPath();
+                ctx.moveTo(c.x - 4, c.y - CORE_R + 2); ctx.lineTo(c.x + 3, c.y - 6); ctx.lineTo(c.x - 3, c.y + 2); ctx.lineTo(c.x + 6, c.y + CORE_R - 3);
+                ctx.moveTo(c.x + 3, c.y - 6); ctx.lineTo(c.x + CORE_R - 4, c.y - 3);
+                ctx.moveTo(c.x - 3, c.y + 2); ctx.lineTo(c.x - CORE_R + 3, c.y + 7);
+                ctx.stroke();
+                ctx.globalAlpha = 0.5 * fl; ctx.strokeStyle = '#ffdc3c'; ctx.lineWidth = 2;
+                hexagon(ctx, c.x, c.y, CORE_R + 14 + 3 * Math.sin(self.time * 6)); ctx.stroke(); ctx.restore();
+            }
             var bw = 70, frac = Math.max(0, c.hp) / CORE_HP, by = side === 'bot' ? c.y + CORE_R + 6 : c.y - CORE_R - 10;
             ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.fillRect(c.x - bw / 2, by, bw, 4);
-            ctx.fillStyle = col; ctx.fillRect(c.x - bw / 2, by, bw * frac, 4);
+            ctx.fillStyle = c.breached ? '#ffdc3c' : col; ctx.fillRect(c.x - bw / 2, by, bw * frac, 4);
         });
         //  Units.
         this.units.forEach(function (u) {
