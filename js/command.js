@@ -24,6 +24,7 @@
     var CORE_HP = 3500, CORE_R = 22;
     var CORE_ARMOR = 0.5;                                 // units do half damage to a core: a siege takes a while
     var BREACH = 0.3, BREACH_MULT = 1.5;                  // below 30 % a core breaks open: no armour, no turret, it falls fast
+    var FLOW_EVERY = 1.5;                                 // a crystal shows its energy flowing home this often (seconds)
     var START_ENERGY = 140, INCOME = 6, CRYSTAL_INCOME = 3;
     var CATCH_UP = 2;
     var SUDDEN = 480, SUDDEN2 = 600;                     // after 8 minutes cores lose their armour, after 10 they take double                                     // energy per second for every crystal the other side holds more
@@ -159,6 +160,7 @@
         this.reported = -1;
         this.goalPassed = false;
         this.nextId = 1;
+        this.flows = []; this.auto = false; this.dom = null; this.secondWind = false; this.wave = null; this.ePulse = 0;
         this.queue = [];                                  // buys waiting for energy (yours only), at most 3
         //  The coach: one short tip at a time, when it helps (Easy and Normal). JOHN-429, from recorded play.
         this.coach = { on: this.level !== 'hard', gap: 4, said: {}, line: null, life: 0, pending: null };
@@ -231,8 +233,8 @@
         if (this.assist && this.assist.on && this.battle > 2 && say('assist', 9999)) { return; }
         if (c.pending) { var p = c.pending; c.pending = null; c.gap = Math.min(c.gap, 0); if (say(p, 12, { n: c.n })) { return; } }
         //  The bot's core is broken: spend everything on the finish instead of watching.
-        if (this.cores.bot.breached && this.energy.you >= 80 && mine < CAP && say('finish', 15, { e: Math.floor(this.energy.you) })) { return; }
-        if (this.energy.you >= 150 && mine < CAP && say('energy', 20, { e: Math.floor(this.energy.you) })) { return; }
+        if (!this.auto && this.cores.bot.breached && this.energy.you >= 80 && mine < CAP && say('finish', 15, { e: Math.floor(this.energy.you) })) { return; }
+        if (!this.auto && this.energy.you >= 150 && mine < CAP && say('energy', 20, { e: Math.floor(this.energy.you) })) { return; }
         //  Winning the map but not the battle: the next step is the bot's core.
         if (this.owned('you') >= 4 && mine >= 8 && this.cores.bot.hp >= CORE_HP * 0.98 && say('push', 25, { m: mine })) { return; }
         //  A good army standing still while the bot holds the crystals: send it.
@@ -289,7 +291,7 @@
     };
 
     //  Send the selected group (or everyone) to a point. They fight what they meet on the way.
-    Game.prototype.order = function (x, y) {
+    Game.prototype.order = function (x, y, via) {
         var sel = this.selected, n = 0;
         x = clamp(x, 10, W - 10); y = clamp(y, TOP + 10, FIELD_B - 10);
         this.units.forEach(function (u) {
@@ -297,7 +299,7 @@
         });
         if (sel === 'all') { this.rally = { x: x, y: Math.max(y, (TOP + FIELD_B) / 2) }; }
         this.marker = { x: x, y: y, life: 0.6 };
-        this.log('order', { sel: sel, x: Math.round(x), y: Math.round(y), n: n });
+        this.log('order', { sel: sel, x: Math.round(x), y: Math.round(y), n: n, via: via || 'tap' });
         this.coach.lastOrder = this.battle;
         if (n === 0) { this.coach.pending = 'empty'; }
         else if (y < (TOP + FIELD_B) / 2 && n < 4 && this.battle > 5) { this.coach.pending = 'few'; this.coach.n = n; }
@@ -361,6 +363,9 @@
                 this.sound.tone(200, 0.5, 'sawtooth', 0.07, 400);
             }
             this.drainQueue();
+            this.autoTick();
+            this.dominance();
+            this.flowTick(dt);
             this.coachTick(dt);
             this.assistTick(dt);
             this.botUpdate(dt);
@@ -451,7 +456,7 @@
             c.cool -= dt;
             if (c.cool > 0 || c.breached) { return; }
             var e = self.enemyNear({ x: c.x, y: c.y, side: side }, 100);
-            if (e && e.kind) { c.cool = 0.7; self.shots.push({ x: c.x, y: c.y, target: e, dmg: 16, side: side, speed: 320 }); }
+            if (e && e.kind) { c.cool = self.dom && self.dom !== side ? 1.4 : 0.7; self.shots.push({ x: c.x, y: c.y, target: e, dmg: 16, side: side, speed: 320 }); }
         });
         //  Remove the dead.
         for (var i = this.units.length - 1; i >= 0; i--) {
@@ -467,6 +472,7 @@
     Game.prototype.hit = function (e, dmg, side) {
         if (!e.kind) {
             var m = this.battle >= SUDDEN2 ? 2 : (this.battle >= SUDDEN ? 1 : CORE_ARMOR);
+            if (this.dom && this.dom !== e.side) { m = Math.max(m, 1); }          // the side that lost the whole map lost its armour too
             dmg *= e.breached ? Math.max(m, BREACH_MULT) : m;
         }
         e.hp -= dmg;
@@ -489,6 +495,75 @@
         this.burst(c.x, c.y, SIDE[c.side].color, 40);
         this.impact(mine ? 5 : 4, 0.35, mine ? 'rgba(255,60,80,0.25)' : 'rgba(255,220,60,0.2)', mine ? 60 : 30);
         this.sound.tone(mine ? 140 : 320, 0.45, 'sawtooth', 0.07, mine ? 70 : 640);
+        if (!mine) { this.coach.gap = 0; }                  // the 'finish' tip comes now, not after the previous tip's pause
+        if (mine && this.level !== 'hard' && !this.secondWind) { this.secondWindBlast(c); }
+    };
+
+    //  Second wind (Easy and Normal, once per battle): when your core breaks, it blasts the attackers around it
+    //  and gives you energy to rebuild, so a battle on the ropes can still turn.
+    Game.prototype.secondWindBlast = function (c) {
+        this.secondWind = true;
+        var hitN = 0;
+        this.units.forEach(function (u) { if (u.side === 'bot' && dist2(u, c) < 140 * 140) { u.hp -= 120; u.flash = 0.2; hitN++; } });
+        this.energy.you += 150;
+        this.log('secondwind', { hit: hitN });
+        this.texts.push({ x: W / 2, y: (TOP + FIELD_B) / 2 + 10, text: t('secondwind'), life: 2.2, max: 2.2, color: '#00f0ff' });
+        this.wave = { x: c.x, y: c.y, r: 0, life: 0.6 };
+        this.burst(c.x, c.y, '#00f0ff', 60);
+        this.sound.tone(90, 0.6, 'sine', 0.09, 400);
+    };
+
+    //  Holding the whole map (every crystal but at most one, the other side none) decides the battle: the losing
+    //  core's armour falls and its turret slows, so the end comes sooner instead of a long siege. Works both ways.
+    Game.prototype.dominance = function () {
+        var n = this.crystals.length, oy = this.owned('you'), ob = this.owned('bot');
+        var dom = (oy >= n - 1 && ob === 0) ? 'you' : ((ob >= n - 1 && oy === 0) ? 'bot' : null);
+        if (dom === this.dom) { return; }
+        this.dom = dom;
+        if (!dom) { return; }
+        this.log('dominate', { side: dom });
+        this.texts.push({ x: W / 2, y: (TOP + FIELD_B) / 2 - 40, text: t(dom === 'you' ? 'dom.you' : 'dom.bot'), life: 2.2, max: 2.2, big: true,
+                          color: dom === 'you' ? '#00f0ff' : '#ff5a6a' });
+        this.sound.tone(dom === 'you' ? 440 : 180, 0.35, 'triangle', 0.07, dom === 'you' ? 880 : 90);
+    };
+
+    //  The energy each crystal gives, made visible: a spark flies from every crystal you hold to your ⚡ counter.
+    Game.prototype.flowTick = function (dt) {
+        var self = this;
+        this.crystals.forEach(function (c, i) {
+            if (!c.owner) { return; }
+            if (c.flowT === undefined) { c.flowT = (i * 0.37) % FLOW_EVERY; }
+            c.flowT -= dt;
+            if (c.flowT > 0) { return; }
+            c.flowT += FLOW_EVERY;
+            var to = c.owner === 'you' ? { x: W - 84, y: 18 } : { x: self.cores.bot.x, y: self.cores.bot.y };
+            self.flows.push({ x: c.x, y: c.y, sx: c.x, sy: c.y, tx: to.x, ty: to.y, t: 0, side: c.owner });
+        });
+        for (var k = this.flows.length - 1; k >= 0; k--) {
+            var f = this.flows[k]; f.t += dt / 0.9;
+            if (f.t >= 1) { if (f.side === 'you') { this.ePulse = 0.25; } this.flows.splice(k, 1); continue; }
+            var e = f.t * f.t * (3 - 2 * f.t), arc = Math.sin(f.t * Math.PI) * 40;
+            f.x = f.sx + (f.tx - f.sx) * e + arc * 0.4; f.y = f.sy + (f.ty - f.sy) * e - arc;
+        }
+        if (this.ePulse > 0) { this.ePulse -= dt; }
+        if (this.wave) { this.wave.life -= dt; this.wave.r += 380 * dt; if (this.wave.life <= 0) { this.wave = null; } }
+    };
+
+    Game.prototype.drawFlows = function (ctx) {
+        (this.flows || []).forEach(function (f) {
+            var col = f.side === 'you' ? '#ffdc3c' : SIDE.bot.color;
+            ctx.save(); ctx.globalAlpha = f.side === 'you' ? 0.95 : 0.45; ctx.fillStyle = col; ctx.shadowColor = col; ctx.shadowBlur = 8;
+            ctx.beginPath(); ctx.arc(f.x, f.y, f.side === 'you' ? 3 : 2, 0, Math.PI * 2); ctx.fill();
+            if (f.side === 'you' && f.t < 0.45) {
+                ctx.globalAlpha = 1 - f.t / 0.45; ctx.shadowBlur = 4; ctx.font = 'bold 11px Arial, sans-serif'; ctx.textAlign = 'center';
+                ctx.fillText('+' + CRYSTAL_INCOME + '⚡', f.sx, f.sy - 16 - f.t * 30);
+            }
+            ctx.restore();
+        });
+        if (this.wave) {
+            ctx.save(); ctx.globalAlpha = Math.max(0, this.wave.life / 0.6); ctx.strokeStyle = '#00f0ff'; ctx.lineWidth = 4; ctx.shadowColor = '#00f0ff'; ctx.shadowBlur = 16;
+            ctx.beginPath(); ctx.arc(this.wave.x, this.wave.y, this.wave.r, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+        }
     };
 
     Game.prototype.moveShots = function (dt) {
@@ -514,7 +589,11 @@
             if (c.progress >= 1) {
                 c.owner = side; c.progress = 0;
                 self.log('crystal', { side: side });
-                if (side === 'you') { self.addScore(25); self.sound.tone(660, 0.18, 'triangle', 0.07, 990); }
+                if (side === 'you') {
+                    self.addScore(25); self.sound.tone(660, 0.18, 'triangle', 0.07, 990);
+                    if (self.coach.said.crystal === undefined && !self.coach.pending) { self.coach.pending = 'crystal'; }
+                }
+                c.flowT = 0.3;
                 self.burst(c.x, c.y, SIDE[side].color, 14);
             }
         });
@@ -641,6 +720,41 @@
         if (this.state === 'title' && buys[code]) { this.setLevel(LEVEL_KEYS[code - 49]); return; }
         if (this.state === 'play' && buys[code]) { if (!this.buy('you', buys[code])) { this.enqueue(buys[code]); } }
         if (this.state === 'play' && sels[code]) { this.selected = sels[code]; }
+        if (this.state !== 'play' || this.paused) { return; }
+        //  Orders without the mouse: A attacks the bot's core, S takes the nearest crystal that is not yours, D comes home.
+        if (code === 65) { this.order(this.cores.bot.x, this.cores.bot.y + CORE_R + 10, 'key'); }
+        else if (code === 83) { var g = this.nearestFree(); if (g) { this.order(g.x, g.y, 'key'); } }
+        else if (code === 68) { this.order(this.cores.you.x, this.cores.you.y - CORE_R - 24, 'key'); }
+        else if (code === 66) { this.toggleAuto(); }
+    };
+
+    //  The crystal that is not yours nearest the selected group (or your core when the group is empty).
+    Game.prototype.nearestFree = function () {
+        var sel = this.selected, n = 0, cx = 0, cy = 0;
+        this.units.forEach(function (u) { if (u.side === 'you' && (sel === 'all' || u.kind === sel)) { cx += u.x; cy += u.y; n++; } });
+        var from = n ? { x: cx / n, y: cy / n } : this.cores.you;
+        var free = this.crystals.filter(function (c) { return c.owner !== 'you'; });
+        free.sort(function (a, b) { return dist2(a, from) - dist2(b, from); });
+        return free[0] || null;
+    };
+
+    //  Auto-buy (B): spends your energy by itself on the unit that beats the bot's most common one (Lances otherwise).
+    Game.prototype.toggleAuto = function () {
+        this.auto = !this.auto;
+        this.log('auto', { on: this.auto });
+        this.texts.push({ x: W / 2, y: FIELD_B - 40, text: t(this.auto ? 'auto.on' : 'auto.off'), life: 1.4, max: 1.4, color: '#ffdc3c' });
+        this.sound.tone(this.auto ? 700 : 400, 0.08, 'triangle', 0.05, this.auto ? 1000 : 300);
+    };
+    Game.prototype.autoTick = function () {
+        if (!this.auto) { return; }
+        var kinds = { spark: 0, lancer: 0, bulwark: 0 }, botN = 0;
+        this.units.forEach(function (u) { if (u.side === 'bot') { kinds[u.kind]++; botN++; } });
+        var want = 'lancer';
+        if (botN >= 2) {
+            var top = ORDER.slice().sort(function (a, b) { return kinds[b] - kinds[a]; })[0];
+            want = ORDER.filter(function (k) { return UNITS[k].beats === top; })[0];
+        }
+        if (this.energy.you >= UNITS[want].cost) { this.buy('you', want); }
     };
     Game.prototype.keyUp = function () {};
     Game.prototype.fieldPoint = function (clientX, clientY) {
@@ -798,6 +912,7 @@
             var q = this.particles[i]; ctx.globalAlpha = Math.max(0, Math.min(1, q.life * 2)); ctx.fillStyle = q.color; ctx.fillRect(q.x - 2, q.y - 2, 4, 4);
         }
         ctx.globalAlpha = 1;
+        this.drawFlows(ctx);
         for (i = 0; i < this.texts.length; i++) {
             var tx = this.texts[i]; ctx.globalAlpha = Math.min(1, tx.life / tx.max * 2);
             this.center(ctx, tx.text, tx.y, tx.big ? 36 : 14, tx.color, true);
@@ -834,7 +949,13 @@
         ctx.font = 'bold 11px Arial, sans-serif'; ctx.fillStyle = '#b0b0c0';
         ctx.fillText('💎 ' + this.owned('you') + ' · ' + this.owned('bot') + '   ' + t('level.' + this.level), W / 2 - 20, 36);
         ctx.textAlign = 'right'; ctx.font = 'bold 15px Arial, sans-serif'; ctx.fillStyle = '#ffdc3c';
+        if (this.ePulse > 0) { ctx.save(); ctx.shadowColor = '#ffdc3c'; ctx.shadowBlur = 14; ctx.font = 'bold 17px Arial, sans-serif'; }
         ctx.fillText('⚡ ' + Math.floor(this.energy.you), W - 56, 18);
+        if (this.ePulse > 0) { ctx.restore(); }
+        if (this.auto && this.state === 'play') {
+            ctx.save(); ctx.fillStyle = '#ffdc3c'; ctx.fillRect(W - 98, 29, 42, 13); ctx.fillStyle = '#05060f'; ctx.font = 'bold 9px Arial, sans-serif';
+            ctx.textAlign = 'center'; ctx.fillText(t('auto.pill'), W - 77, 36); ctx.restore();
+        }
     };
 
     Game.prototype.drawBar = function (ctx) {

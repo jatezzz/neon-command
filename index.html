@@ -196,14 +196,14 @@
             </div>
         </div>
 
-        <script src="js/i18n.js?v=20261123breach"></script>
+        <script src="js/i18n.js?v=20261123dom"></script>
         <script>window.NeonStageConfig = { game: 'neon-command', play: ['play'], over: ['over', 'ending'],
             muted: function () { return !!(window.game && game.sound && game.sound.mute); } };</script>
-        <script src="js/neon-stage.js?v=20261123breach"></script>
+        <script src="js/neon-stage.js?v=20261123dom"></script>
         <script src="js/neon-fx.js?v=2"></script>
-        <script src="js/daily.js?v=20261123breach"></script>
-        <script src="js/command.js?v=20261123breach"></script>
-        <script src="js/rec.js?v=20261123breach"></script>
+        <script src="js/daily.js?v=20261123dom"></script>
+        <script src="js/command.js?v=20261123dom"></script>
+        <script src="js/rec.js?v=20261123dom"></script>
         <script>
         (function () {
             'use strict';
@@ -241,7 +241,8 @@
             window.addEventListener('keydown', function (e) {
                 var k = e.keyCode;
                 if (k === 37 || k === 39 || k === 32 || k === 38 || k === 40) { e.preventDefault(); }
-                if (e.repeat && (k === 32 || k === 27 || k === 80)) { return; }
+                if (e.ctrlKey || e.metaKey || e.altKey) { return; }
+                if (e.repeat && (k === 32 || k === 27 || k === 80 || k === 66)) { return; }
                 game.keyDown(k);
             });
             window.addEventListener('keyup', function (e) { game.keyUp(e.keyCode); });
