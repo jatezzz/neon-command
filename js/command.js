@@ -728,7 +728,18 @@
         return LEVEL_KEYS.map(function (k, i) { return { key: k, x: x0 + i * (w + gap), y: 405, w: w, h: 46 }; });
     };
     Game.prototype.pauseButtons = function () {
-        return { resume: { x: 100, y: 330, w: 200, h: 46 }, surrender: { x: 100, y: 392, w: 200, h: 46 } };
+        return { resume: { x: 100, y: 330, w: 200, h: 46 }, surrender: { x: 100, y: 392, w: 200, h: 46 }, sound: { x: 100, y: 454, w: 200, h: 40 } };
+    };
+
+    //  Sound on/off: effects and music together (the music follows sound.mute). From M, the corner button, the pause menu.
+    Game.prototype.toggleSound = function () {
+        var off = this.sound.toggle();
+        this.log('sound', { on: !off });
+        if (!off) { this.sound.unlock(); this.sound.tone(660, 0.06, 'sine', 0.05, 880); }
+        if (this.state === 'play' && !this.paused) {
+            this.texts.push({ x: W / 2, y: FIELD_B - 40, text: t(off ? 'sound.off' : 'sound.on'), life: 1.2, max: 1.2, color: '#e0e0f0' });
+        }
+        if (this.onSound) { this.onSound(); }
     };
 
     //  A tap or click at a point of the play field (in field units).
@@ -736,6 +747,7 @@
         this.sound.unlock();
         if (this.paused) {
             var b = this.pauseButtons(), hitP = function (r) { return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h; };
+            if (hitP(b.sound)) { this.toggleSound(); return; }                 // stays paused
             this.requestPause(false);
             if (hitP(b.surrender)) { this.log('surrender'); this.finish(false); }
             return;
@@ -759,6 +771,7 @@
     //  Keyboard: 1 2 3 buy, Q W E R pick a group, Space starts, Esc or P pauses.
     Game.prototype.keyDown = function (code) {
         if (code === 27 || code === 80) { this.requestPause(!this.paused); return; }
+        if (code === 77) { this.toggleSound(); return; }
         if (code === 32 || code === 13) {
             if (this.state === 'title' || (this.state === 'over' && !(D && D.locked()))) { this.startRun(); }
             else if (this.paused) { this.requestPause(false); }
@@ -1230,6 +1243,10 @@
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = 'bold 16px Arial, sans-serif';
         ctx.fillStyle = '#00f0ff'; ctx.fillText(t('resume'), W / 2, b.resume.y + b.resume.h / 2);
         ctx.fillStyle = '#ff00c8'; ctx.fillText(t('surrender'), W / 2, b.surrender.y + b.surrender.h / 2);
+        ctx.fillStyle = 'rgba(255,255,255,0.06)'; roundRect(ctx, b.sound.x, b.sound.y, b.sound.w, b.sound.h, 10); ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.45)'; ctx.lineWidth = 1.5; ctx.stroke();
+        ctx.font = 'bold 14px Arial, sans-serif'; ctx.fillStyle = '#e0e0f0';
+        ctx.fillText((this.sound.mute ? '🔇 ' : '🔊 ') + t(this.sound.mute ? 'sound.menu.off' : 'sound.menu.on') + ' (M)', W / 2, b.sound.y + b.sound.h / 2);
     };
 
     // ---------------------------------------------------------------- the loop

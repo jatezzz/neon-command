@@ -59,6 +59,14 @@
             body[data-state="paused"] #pauseBtn::before { content: '\25B6'; }
             body[data-state="play"] #pauseBtn, body[data-state="serve"] #pauseBtn, body[data-state="paused"] #pauseBtn { display: block; }
             body.in-portal #pauseBtn { display: none !important; }      /* the portal has its own pause button */
+            /* Sound on/off (effects and music), always at hand: under the pause button (alone in the portal). */
+            #soundBtn {
+                position: absolute; top: 52px; right: 6px; width: 40px; height: 40px; border-radius: 8px;
+                border: 2px solid rgba(255, 255, 255, 0.55); background: rgba(0, 0, 0, 0.45); color: #ffffff;
+                font: 18px Arial, sans-serif; line-height: 1; padding: 0; touch-action: none; cursor: pointer;
+            }
+            #soundBtn.off { border-color: rgba(255, 90, 106, 0.8); }
+            body[data-state="title"] #soundBtn, body[data-state="over"] #soundBtn, body.in-portal #soundBtn { top: 6px; }
             #info {
                 max-width: 520px;
                 margin: 0 auto;
@@ -160,6 +168,7 @@
         <div id="stage">
             <canvas id="gameCanvas" width="400" height="640"></canvas>
             <button type="button" id="pauseBtn" aria-label="Pausa"></button>
+            <button type="button" id="soundBtn" aria-label="Sonido"></button>
         </div>
         <div id="info">
             <p id="howto" class="desktop-only" data-i18n="info.desktop">Compra unidades abajo y haz clic en el mapa para mandarlas.</p>
@@ -196,14 +205,14 @@
             </div>
         </div>
 
-        <script src="js/i18n.js?v=20261123units"></script>
+        <script src="js/i18n.js?v=20261123sound"></script>
         <script>window.NeonStageConfig = { game: 'neon-command', play: ['play'], over: ['over', 'ending'],
             muted: function () { return !!(window.game && game.sound && game.sound.mute); } };</script>
-        <script src="js/neon-stage.js?v=20261123units"></script>
+        <script src="js/neon-stage.js?v=20261123sound"></script>
         <script src="js/neon-fx.js?v=2"></script>
-        <script src="js/daily.js?v=20261123units"></script>
-        <script src="js/command.js?v=20261123units"></script>
-        <script src="js/rec.js?v=20261123units"></script>
+        <script src="js/daily.js?v=20261123sound"></script>
+        <script src="js/command.js?v=20261123sound"></script>
+        <script src="js/rec.js?v=20261123sound"></script>
         <script>
         (function () {
             'use strict';
@@ -242,13 +251,13 @@
                 var k = e.keyCode;
                 if (k === 37 || k === 39 || k === 32 || k === 38 || k === 40) { e.preventDefault(); }
                 if (e.ctrlKey || e.metaKey || e.altKey) { return; }
-                if (e.repeat && (k === 32 || k === 27 || k === 80 || k === 66)) { return; }
+                if (e.repeat && (k === 32 || k === 27 || k === 80 || k === 66 || k === 77)) { return; }
                 game.keyDown(k);
             });
             window.addEventListener('keyup', function (e) { game.keyUp(e.keyCode); });
 
             //  Pointer: a tap starts, resumes, sends the selected group, or presses a button of the command bar.
-            function ignored(target) { return target.closest && target.closest('#gameover, #info a, #pauseBtn'); }
+            function ignored(target) { return target.closest && target.closest('#gameover, #info a, #pauseBtn, #soundBtn'); }
             window.addEventListener('pointerdown', function (e) {
                 if (ignored(e.target)) { return; }
                 if (e.pointerType === 'mouse' && e.button !== 0) { return; }
@@ -267,10 +276,20 @@
             document.addEventListener('visibilitychange', function () { if (document.hidden) { game.requestPause(true); } });
 
             //  Sound.
-            var muteLink = document.getElementById('muteLink');
-            function muteText() { muteLink.textContent = NeonI18n.t(game.sound.mute ? 'info.unmute' : 'info.mute'); }
+            //  One switch for effects and music (neon-stage follows game.sound.mute): the corner button, M, the pause menu, the link.
+            var muteLink = document.getElementById('muteLink'), soundBtn = document.getElementById('soundBtn');
+            function muteText() {
+                var off = game.sound.mute;
+                muteLink.textContent = NeonI18n.t(off ? 'info.unmute' : 'info.mute');
+                soundBtn.textContent = off ? '\uD83D\uDD07' : '\uD83D\uDD0A';
+                soundBtn.classList.toggle('off', off);
+                soundBtn.setAttribute('aria-label', NeonI18n.t(off ? 'info.unmute' : 'info.mute'));
+                soundBtn.title = NeonI18n.t(off ? 'info.unmute' : 'info.mute') + ' (M)';
+            }
             muteText();
-            muteLink.addEventListener('click', function (e) { e.preventDefault(); game.sound.toggle(); muteText(); });
+            game.onSound = muteText;
+            muteLink.addEventListener('click', function (e) { e.preventDefault(); game.toggleSound(); });
+            soundBtn.addEventListener('pointerdown', function (e) { e.preventDefault(); e.stopPropagation(); game.toggleSound(); });
         })();
         </script>
     </body>
