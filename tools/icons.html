@@ -1,0 +1,8 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>html,body{margin:0;background:transparent}img{display:block}</style></head>
+<body><img id="i" src="../img/favicon.svg">
+<script>
+// Renders img/favicon.svg at the size in ?s= (32, 180, 192, 512) for the PNG icons. JOHN-429.
+var s = parseInt(new URLSearchParams(location.search).get('s') || '32', 10), i = document.getElementById('i');
+i.width = s; i.height = s;
+</script></body></html>

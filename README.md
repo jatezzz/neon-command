@@ -5,7 +5,8 @@ abierto, hecho con JavaScript, CSS y HTML puros: sin frameworks, sin paso de com
 
 - **Jugar:** [games.johnandrestrujillo.com/play/neon-command](https://games.johnandrestrujillo.com/play/neon-command)
 - **Controles:** compra unidades con los botones de abajo, elige un grupo y toca el mapa para mandarlo. En teclado:
-  1, 2 y 3 compran; Q, W, E y R eligen el grupo; Esc o P pausan.
+  1, 2 y 3 compran; Q, W, E y R eligen el grupo; A ataca el núcleo del bot, S toma el cristal más cercano y D vuelve a
+  casa; B activa la compra automática; M apaga o enciende el sonido; Esc o P pausan.
 
 *English: a small real-time strategy game against a bot, with a new map every day. Open-source browser game in plain
 JavaScript. Add `?lang=en` for English.*
@@ -35,9 +36,22 @@ tiempo. Gana quien destruya el núcleo del otro.
 - **Remontada:** quien tiene menos cristales recibe 2 de energía por segundo por cada cristal de diferencia.
 - **Muerte súbita:** desde el minuto 8 los núcleos pierden su blindaje y desde el 10 reciben el doble; no hay empates
   eternos.
+- **Dominio:** quien tiene todos los cristales menos uno, con el otro sin ninguno, deja al núcleo rival sin blindaje y
+  con la torreta a la mitad de velocidad.
+- **Núcleo roto:** por debajo del 30 % un núcleo pierde el blindaje y la torreta, así que el final llega en segundos.
+- **Segundo aire** (Fácil y Normal, una vez): cuando tu núcleo se rompe, suelta una onda contra los atacantes y te da
+  150 de energía.
+- **Refuerzos seguros:** las unidades nuevas esperan frente a tu núcleo hasta que haya un grupo al que sumarse.
 - **Rendirse:** en la pausa, para no esperar una derrota que ya se ve venir.
 
 Las partidas duran de 2 a 10 minutos.
+
+## Arte
+
+Las unidades son vectores en `js/unit-art.js`, calcados de referencias aprobadas, con cada pieza en su capa (cuerpo,
+núcleo, lanza, escudo, orugas, llama) para animarla. El juego las dibuja desde ahí y `node tools/unit_svgs.js` escribe los
+SVG en `img/units/`. El ícono sale de la Chispa (`node tools/favicon.js`, y los PNG desde `tools/icons.html`). La vista
+previa al compartir (`og.jpg`) se arma en `tools/og-units.html` con un navegador.
 
 ## El reto del día
 

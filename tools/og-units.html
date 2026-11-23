@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>html,body{margin:0;background:#05060f}</style></head>
+<body><canvas id="c" width="1200" height="630"></canvas>
+<script src="../js/unit-art.js"></script>
+<script>
+// The link preview (og.jpg, 1200x630), JOHN-429: the approved battle key art (D2) on the right, the 3D logo, the promise,
+// and your three units in their vector art. Rendered by a browser screenshot; see README.
+var c = document.getElementById('c'), x = c.getContext('2d'), A = window.NeonUnitArt;
+function load(src) { return new Promise(function (ok) { var i = new Image(); i.onload = function () { ok(i); }; i.src = src; }); }
+function unit(kind, cx, cy, R) {
+    var s = R * A.SCALE[kind];
+    x.save(); x.translate(cx, cy); x.scale(s, s);
+    A.ART.you[kind].forEach(function (p) {
+        var path = new Path2D(p.d);
+        x.save(); x.shadowBlur = 0;
+        if (p.anim === 'glow' || p.anim === 'shield') { x.shadowColor = '#00f0ff'; x.shadowBlur = 22; }
+        if (p.anim === 'tip') { x.shadowColor = '#ffdc3c'; x.shadowBlur = 18; }
+        if (p.anim === 'core') { x.shadowColor = '#ffffff'; x.shadowBlur = 12; }
+        if (p.anim === 'flame') { x.globalAlpha = 0.85; x.shadowColor = '#00f0ff'; x.shadowBlur = 16; }
+        x.fillStyle = A.color('you', p.fill); x.fill(path);
+        if (p.stroke) { x.shadowBlur = 0; x.strokeStyle = A.color('you', p.stroke); x.lineWidth = 1.6 / s; x.lineJoin = 'round'; x.stroke(path); }
+        if (p.anim === 'treadL' || p.anim === 'treadR') {
+            x.clip(path); x.strokeStyle = A.color('you', 'mid'); x.lineWidth = 2.4; x.beginPath();
+            var x0 = p.anim === 'treadL' ? -48 : 28; for (var ty = -34; ty < 38; ty += 7) { x.moveTo(x0, ty); x.lineTo(x0 + 20, ty); } x.stroke();
+        }
+        x.restore();
+    });
+    x.restore();
+}
+function text(t, tx, ty, size, color, blur) {
+    x.save(); x.font = '800 ' + size + 'px "Arial Black", Arial, sans-serif'; x.textBaseline = 'alphabetic';
+    x.lineJoin = 'round'; x.lineWidth = Math.max(4, size / 7); x.strokeStyle = 'rgba(5,6,15,0.95)'; x.strokeText(t, tx, ty);
+    x.shadowColor = color; x.shadowBlur = blur || 0; x.fillStyle = color; x.fillText(t, tx, ty); x.restore();
+}
+Promise.all([load('../img/keyart-units.jpg'), load('../img/logo.png')]).then(function (im) {
+    var bg = im[0], logo = im[1];
+    // key art, cover-fit, a little to the right
+    var sc = Math.max(1200 / bg.width, 630 / bg.height) * 1.05, bw = bg.width * sc, bh = bg.height * sc;
+    x.drawImage(bg, 1200 - bw + 60, (630 - bh) / 2, bw, bh);
+    // a dark veil on the left so the words read
+    var g = x.createLinearGradient(0, 0, 760, 0);
+    g.addColorStop(0, 'rgba(5,6,15,0.96)'); g.addColorStop(0.55, 'rgba(5,6,15,0.82)'); g.addColorStop(1, 'rgba(5,6,15,0)');
+    x.fillStyle = g; x.fillRect(0, 0, 1200, 630);
+    x.fillStyle = 'rgba(5,6,15,0.35)'; x.fillRect(0, 560, 1200, 70);
+    // the 3D logo
+    x.save(); x.shadowColor = 'rgba(255,0,200,0.55)'; x.shadowBlur = 30; x.drawImage(logo, 36, 18, 520, 260); x.restore();
+    text('Estrategia contra mi bot,', 64, 318, 40, '#ffffff');
+    text('un mapa nuevo cada día.', 64, 368, 40, '#ffffff');
+    text('¿Le ganas?', 64, 434, 46, '#ffdc3c', 14);
+    // your three units, in the game's vector art
+    unit('spark', 120, 528, 30); unit('lancer', 250, 540, 26); unit('bulwark', 392, 528, 28);
+    document.title = 'ready';
+});
+</script></body></html>
