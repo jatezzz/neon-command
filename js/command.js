@@ -17,7 +17,7 @@
     var CAP = 30;                                         // most units per side
     var UNITS = {
         spark:   { cost: 40, hp: 42,  speed: 60, range: 13, dmg: 7,  every: 0.55, r: 5, beats: 'lancer',  shape: 'tri' },
-        lancer:  { cost: 60, hp: 48,  speed: 36, range: 72, dmg: 11, every: 1.0,  r: 6, beats: 'bulwark', shape: 'dia', shot: true },
+        lancer:  { cost: 65, hp: 48,  speed: 36, range: 72, dmg: 11, every: 1.0,  r: 6, beats: 'bulwark', shape: 'dia', shot: true },
         bulwark: { cost: 80, hp: 170, speed: 28, range: 15, dmg: 10, every: 0.8,  r: 8, beats: 'spark',   shape: 'sq' }
     };
     var ORDER = ['spark', 'lancer', 'bulwark'];
