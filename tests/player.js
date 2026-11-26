@@ -3,7 +3,8 @@
 (function () {
     function install(game, opts) {
         //  lazy: buys a mix and never gives an order (how a new player on a phone often plays).
-        var o = Object.assign({ attackAt: 10, think: 0.5, counter: true, level: null, lazy: false }, opts || {});
+        //  autoBuy: presses B once and lets the game buy, only giving orders (crystal, then core): the Reddit tester's way.
+        var o = Object.assign({ attackAt: 10, think: 0.5, counter: true, level: null, lazy: false, autoBuy: false, only: null }, opts || {});
         var orig = game.update, wait = 0, U = window.NeonCommand.UNITS;
         game.update = function (dt) {
             if (this.state === 'title') { if (o.level) { this.setLevel(o.level); } this.tap(200, 300); }
@@ -14,7 +15,8 @@
                 this.units.forEach(function (u) { if (u.side === 'bot') { bots[u.kind]++; } else { mine.push(u); } });
                 var top = Object.keys(bots).sort(function (a, b) { return bots[b] - bots[a]; })[0];
                 var want = o.counter && bots[top] ? Object.keys(U).filter(function (k) { return U[k].beats === top; })[0] : ['spark', 'lancer', 'bulwark'][mine.length % 3];
-                this.buy('you', want);
+                if (o.only) { want = o.only; }
+                if (o.autoBuy) { if (!this.auto) { this.toggleAuto(); } } else { this.buy('you', want); }
                 if (o.lazy) { orig.call(this, dt); return; }
                 this.selected = 'all';
                 var free = this.crystals.filter(function (c) { return c.owner !== 'you'; }).sort(function (a, b) { return b.y - a.y; });

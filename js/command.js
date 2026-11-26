@@ -16,8 +16,8 @@
     var STEP = 1 / 120;
     var CAP = 30;                                         // most units per side
     var UNITS = {
-        spark:   { cost: 40, hp: 42,  speed: 60, range: 13, dmg: 7,  every: 0.45, r: 5, beats: 'lancer',  shape: 'tri' },
-        lancer:  { cost: 60, hp: 48,  speed: 36, range: 88, dmg: 11, every: 1.0,  r: 6, beats: 'bulwark', shape: 'dia', shot: true },
+        spark:   { cost: 40, hp: 42,  speed: 60, range: 13, dmg: 7,  every: 0.55, r: 5, beats: 'lancer',  shape: 'tri' },
+        lancer:  { cost: 60, hp: 48,  speed: 36, range: 72, dmg: 11, every: 1.0,  r: 6, beats: 'bulwark', shape: 'dia', shot: true },
         bulwark: { cost: 80, hp: 170, speed: 28, range: 15, dmg: 10, every: 0.8,  r: 8, beats: 'spark',   shape: 'sq' }
     };
     var ORDER = ['spark', 'lancer', 'bulwark'];
@@ -31,12 +31,14 @@
     var START_ARMY = ['spark', 'spark', 'lancer'];        // nobody starts empty
     //  Levels: how much energy the bot gets, how fast it thinks, how often it answers your mix, how long it waits before
     //  its first attack, how many units it adds to its push size, how many more units than yours it allows itself,
-    //  and the score multiplier, so scores stay comparable across levels.
+    //  and the score multiplier, so scores stay comparable across levels. mono: on Easy the bot answers an army that is
+    //  mostly one unit (it teaches the Spark > Lancer > Bulwark circle; JOHN-427, from a Reddit tester); 0 = never.
     var LEVELS = {
-        easy:   { income: 0.60, think: 1.4,  counter: 0.3, grace: 120, attackPlus: 4, lead: 3,  mult: 0.6, bank: 220 },
-        normal: { income: 0.85, think: 0.75, counter: 0.75, grace: 70, attackPlus: 2, lead: 6,  mult: 1.0, bank: 500 },
-        hard:   { income: 1.00, think: 0.5,  counter: 1.0, grace: 30,  attackPlus: 0, lead: 99, mult: 1.4, bank: 1e9 }
+        easy:   { income: 0.60, think: 1.4,  counter: 0.3, grace: 120, attackPlus: 4, lead: 3,  mult: 0.6, bank: 220, mono: 0.85 },
+        normal: { income: 0.85, think: 0.75, counter: 0.75, grace: 70, attackPlus: 2, lead: 6,  mult: 1.0, bank: 500, mono: 0 },
+        hard:   { income: 1.00, think: 0.5,  counter: 1.0, grace: 30,  attackPlus: 0, lead: 99, mult: 1.4, bank: 1e9, mono: 0 }
     };
+    var COUNTER_X = 2.5;                                  // damage against the unit you beat (the circle has to matter)
     var LEVEL_KEYS = ['easy', 'normal', 'hard'];
     var CAPTURE_R = 28, CAPTURE_TIME = 2.5;
     var SIDE = { you: { color: '#00f0ff', dim: 'rgba(0,240,255,0.25)' }, bot: { color: '#ff00c8', dim: 'rgba(255,0,200,0.25)' } };
@@ -146,7 +148,7 @@
     Game.prototype.resetRun = function () {
         var mid = (TOP + FIELD_B) / 2;
         this.battle = 0;                                  // seconds of battle
-        this.score = 0; this.won = false;
+        this.score = 0; this.won = false; this.bought = { spark: 0, lancer: 0, bulwark: 0 }; this.botAnswer = null;
         this.units = []; this.shots = []; this.particles = []; this.texts = [];
         this.cores = { you: { side: 'you', x: W / 2, y: FIELD_B - 34, hp: CORE_HP, cool: 0 }, bot: { side: 'bot', x: W / 2, y: TOP + 34, hp: CORE_HP, cool: 0 } };
         this.energy = { you: START_ENERGY, bot: START_ENERGY };
@@ -196,7 +198,7 @@
         if (mine >= CAP) { return false; }
         this.energy[side] -= u.cost;
         this.spawn(side, kind);
-        if (side === 'you') { this.stats.built += 1; this.sound.tone(330 + ORDER.indexOf(kind) * 110, 0.08, 'triangle', 0.06); }
+        if (side === 'you') { this.stats.built += 1; if (!this.autoBuying) { this.bought[kind] += 1; } this.sound.tone(330 + ORDER.indexOf(kind) * 110, 0.08, 'triangle', 0.06); }
         this.log('buy', { side: side, kind: kind });
         return true;
     };
@@ -240,6 +242,8 @@
         //  A good army standing still while the bot holds the crystals: send it.
         if (mine >= 5 && this.battle - (c.lastOrder || 0) > 15 && this.owned('bot') >= 3 && say('idle', 20, { m: mine })) { return; }
         if (botN >= mine * 2 + 2 && say('outnumbered', 25, { b: botN, m: mine })) { return; }
+        var ba = this.botAnswer;
+        if (ba && this.battle - ba.at < 12 && say('mono', 40, { k: t('u.' + ba.k), b: t('u.' + ba.b) })) { return; }
         var top = ORDER.slice().sort(function (a, b) { return kinds[b] - kinds[a]; })[0];
         if (kinds[top] >= 3 && kinds[top] * 2 >= botN) {
             var beater = ORDER.filter(function (k) { return UNITS[k].beats === top; })[0];
@@ -347,8 +351,13 @@
             var yours = { spark: 0, lancer: 0, bulwark: 0 };
             this.units.forEach(function (u) { if (u.side === 'you') { yours[u.kind]++; } });
             var top = ORDER.slice().sort(function (a, b) { return yours[b] - yours[a]; })[0];
+            var total = yours.spark + yours.lancer + yours.bulwark;
             if (yours[top] >= 3 && r() < plan.counter * L.counter) {
                 this.botWant = ORDER.filter(function (k) { return UNITS[k].beats === top; })[0];
+            } else if (L.mono && yours[top] >= 4 && yours[top] >= total * 0.6 && r() < L.mono) {
+                //  Mostly one unit: the bot answers it, and the coach says so (once in a while) so the player learns why.
+                this.botWant = ORDER.filter(function (k) { return UNITS[k].beats === top; })[0];
+                this.botAnswer = { k: top, b: this.botWant, at: this.battle };
             } else {
                 var x = r(), acc = 0;
                 for (var i = 0; i < ORDER.length; i++) { acc += plan.mix[ORDER[i]]; if (x <= acc) { this.botWant = ORDER[i]; break; } }
@@ -488,7 +497,7 @@
             var reach = spec.range + (e.kind ? UNITS[e.kind].r : CORE_R) + 1;
             if (dist2(u, e) > reach * reach) { return; }
             u.cool = spec.every; u.atk = 0.22;
-            var dmg = spec.dmg * (e.kind && spec.beats === e.kind ? 2 : 1);
+            var dmg = spec.dmg * (e.kind && spec.beats === e.kind ? COUNTER_X : 1);
             if (u.kind === 'spark') { self.zaps.push({ x1: u.x, y1: u.y, x2: e.x, y2: e.y, side: u.side, life: 0.14 }); }
             else if (u.kind === 'bulwark') { self.zaps.push({ ring: true, x: e.x, y: e.y, side: u.side, life: 0.25 }); }
             if (spec.shot) {
@@ -663,6 +672,12 @@
         if (won) {
             var bonus = 1000 + Math.max(0, Math.round((600 - this.battle) * 3)) + Math.round(this.cores.you.hp / CORE_HP * 300);
             this.addScore(bonus);
+            var bt = this.bought, nb = bt.spark + bt.lancer + bt.bulwark;
+            if (nb >= 6 && Math.max(bt.spark, bt.lancer, bt.bulwark) <= nb / 2) {
+                this.score = Math.round(this.score * 1.1);
+                this.stats.balanced = true;
+                this.texts.push({ x: W / 2, y: (TOP + FIELD_B) / 2 + 46, text: t('balanced'), life: 2.6, max: 2.6, color: '#ffdc3c' });
+            }
         }
         this.score = Math.round(this.score * LEVELS[this.level].mult);       // the level multiplier keeps scores comparable
         this.log(won ? 'win' : 'lose', { seconds: Math.round(this.battle), level: this.level });
@@ -799,7 +814,7 @@
         return free[0] || null;
     };
 
-    //  Auto-buy (B): spends your energy by itself on the unit that beats the bot's most common one (Lances otherwise).
+    //  Auto-buy (B): spends your energy by itself on a balanced army. Only units bought by hand count for the bonus.
     Game.prototype.toggleAuto = function () {
         this.auto = !this.auto;
         this.log('auto', { on: this.auto });
@@ -808,8 +823,12 @@
     };
     Game.prototype.autoTick = function () {
         if (!this.auto) { return; }
-        var want = this.recommend() || 'lancer';
-        if (this.energy.you >= UNITS[want].cost) { this.buy('you', want); }
+        //  It keeps a balanced army (the kind you have fewest of; Lancers on a tie) and does NOT read the bot: answering
+        //  the bot's mix is the player's job, and the reason to buy by hand (JOHN-427, from a Reddit tester).
+        var mine = { spark: 0, lancer: 0, bulwark: 0 };
+        this.units.forEach(function (u) { if (u.side === 'you') { mine[u.kind]++; } });
+        var want = ['lancer', 'spark', 'bulwark'].sort(function (a, b) { return mine[a] - mine[b]; })[0];
+        if (this.energy.you >= UNITS[want].cost) { this.autoBuying = true; this.buy('you', want); this.autoBuying = false; }
     };
     Game.prototype.keyUp = function () {};
     Game.prototype.fieldPoint = function (clientX, clientY) {
