@@ -33,10 +33,12 @@
     //  its first attack, how many units it adds to its push size, how many more units than yours it allows itself,
     //  and the score multiplier, so scores stay comparable across levels. mono: on Easy the bot answers an army that is
     //  mostly one unit (it teaches the Spark > Lancer > Bulwark circle; JOHN-427, from a Reddit tester); 0 = never.
+    //  weak: damage a unit deals to the unit that beats it. Below 1 on Normal and Hard, so an army of one kind can't just
+    //  outshoot its answer (Lancer-only still won on Normal); Easy stays forgiving.
     var LEVELS = {
-        easy:   { income: 0.60, think: 1.4,  counter: 0.3, grace: 120, attackPlus: 4, lead: 3,  mult: 0.6, bank: 220, mono: 0.85 },
-        normal: { income: 0.85, think: 0.75, counter: 0.75, grace: 70, attackPlus: 2, lead: 6,  mult: 1.0, bank: 500, mono: 0 },
-        hard:   { income: 1.00, think: 0.5,  counter: 1.0, grace: 30,  attackPlus: 0, lead: 99, mult: 1.4, bank: 1e9, mono: 0 }
+        easy:   { income: 0.60, think: 1.4,  counter: 0.3, grace: 120, attackPlus: 4, lead: 3,  mult: 0.6, bank: 220, mono: 0.85, weak: 1 },
+        normal: { income: 0.85, think: 0.75, counter: 0.75, grace: 70, attackPlus: 2, lead: 6,  mult: 1.0, bank: 500, mono: 0.85, weak: 0.6 },
+        hard:   { income: 1.00, think: 0.5,  counter: 1.0, grace: 30,  attackPlus: 0, lead: 99, mult: 1.4, bank: 1e9, mono: 0, weak: 0.6 }
     };
     var COUNTER_X = 2.5;                                  // damage against the unit you beat (the circle has to matter)
     var LEVEL_KEYS = ['easy', 'normal', 'hard'];
@@ -497,7 +499,7 @@
             var reach = spec.range + (e.kind ? UNITS[e.kind].r : CORE_R) + 1;
             if (dist2(u, e) > reach * reach) { return; }
             u.cool = spec.every; u.atk = 0.22;
-            var dmg = spec.dmg * (e.kind && spec.beats === e.kind ? COUNTER_X : 1);
+            var dmg = spec.dmg * (!e.kind ? 1 : spec.beats === e.kind ? COUNTER_X : UNITS[e.kind].beats === u.kind ? LEVELS[self.level].weak : 1);
             if (u.kind === 'spark') { self.zaps.push({ x1: u.x, y1: u.y, x2: e.x, y2: e.y, side: u.side, life: 0.14 }); }
             else if (u.kind === 'bulwark') { self.zaps.push({ ring: true, x: e.x, y: e.y, side: u.side, life: 0.25 }); }
             if (spec.shot) {
